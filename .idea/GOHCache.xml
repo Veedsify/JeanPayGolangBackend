@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="GoORMHelperCache">
+    <option name="schemaMapping">
+      <map>
+        <entry key="EmailAttachment">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/services/EmailService.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="EmailConfig">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/services/EmailService.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="EmailMessage">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/services/EmailService.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="EmailService">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/services/EmailService.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="Error">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/middlewares/Auth.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="JWTClaims">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/libs/jwt.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="JWTConfig">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/libs/jwt.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="JWTService">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/libs/jwt.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="LoginUser">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/types/User.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="RegisterUser">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/types/User.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="TokenPair">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/libs/jwt.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="User">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/database/models/User.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="UserInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/libs/jwt.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="UserResponse">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/types/User.go" />
+            </set>
+          </value>
+        </entry>
+      </map>
+    </option>
+    <option name="scannedPathMapping">
+      <map>
+        <entry key="file://$PROJECT_DIR$/controllers/AuthController.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1753563458059" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/controllers/UserController.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1753564603479" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/database/dBinit.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1753553496526" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/database/models/User.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1753565067481" />
+              <option name="schema">
+                <list>
+                  <option value="User" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/index.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1753554314185" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/libs/RandomID.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1753617500115" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/libs/bycript.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1753560651546" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/libs/jwt.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1753617734252" />
+              <option name="schema">
+                <list>
+                  <option value="JWTClaims" />
+                  <option value="JWTConfig" />
+                  <option value="JWTService" />
+                  <option value="TokenPair" />
+                  <option value="UserInfo" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/middlewares/Auth.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1753562421452" />
+              <option name="schema">
+                <list>
+                  <option value="Error" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/routes/api.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1753618751035" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/routes/endpoints/auth.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1753562483880" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/routes/endpoints/user.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1753564309456" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/services/AuthService.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1753569059787" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/services/EmailService.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1753560816427" />
+              <option name="schema">
+                <list>
+                  <option value="EmailConfig" />
+                  <option value="EmailMessage" />
+                  <option value="EmailAttachment" />
+                  <option value="EmailService" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/types/User.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1753564478018" />
+              <option name="schema">
+                <list>
+                  <option value="RegisterUser" />
+                  <option value="LoginUser" />
+                  <option value="UserResponse" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+      </map>
+    </option>
+    <option name="tableStructMapping">
+      <map>
+        <entry key="email_attachment" value="EmailAttachment" />
+        <entry key="email_config" value="EmailConfig" />
+        <entry key="email_message" value="EmailMessage" />
+        <entry key="email_service" value="EmailService" />
+        <entry key="error" value="Error" />
+        <entry key="jwt_claims" value="JWTClaims" />
+        <entry key="jwt_config" value="JWTConfig" />
+        <entry key="jwt_service" value="JWTService" />
+        <entry key="login_user" value="LoginUser" />
+        <entry key="register_user" value="RegisterUser" />
+        <entry key="token_pair" value="TokenPair" />
+        <entry key="user" value="User" />
+        <entry key="user_info" value="UserInfo" />
+        <entry key="user_response" value="UserResponse" />
+      </map>
+    </option>
+    <option name="lastTimeChecked" value="1753617974690" />
+  </component>
+</project>
