@@ -39,5 +39,6 @@ func autoMigrate(db *gorm.DB) {
 		&models.Wallet{},
 		&models.WebhookEvent{},
 		&models.Setting{},
+		&models.Activity{},
 	)
 }

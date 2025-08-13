@@ -192,7 +192,7 @@ func GetRecentActivityEndpoint(c *gin.Context) {
 
 	claims := claimsAny.(*libs.JWTClaims)
 
-	activity, err := services.GetRecentActivity(claims.UserID)
+	activity, err := services.GetRecentActivity(claims.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   true,

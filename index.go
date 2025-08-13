@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/Veedsify/JeanPayGoBackend/database"
+	"github.com/Veedsify/JeanPayGoBackend/initializers"
 	"github.com/Veedsify/JeanPayGoBackend/routes"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -11,6 +12,7 @@ import (
 )
 
 func init() {
+	go initializers.InitializeQueueServer()
 	database.InitDB()
 }
 

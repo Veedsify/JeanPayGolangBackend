@@ -32,6 +32,7 @@ type User struct {
 	Setting            Setting       `json:"setting" gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	Transactions       []Transaction `json:"transactions" gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	Wallet             []Wallet      `json:"wallets" gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Activity           []Activity    `json:"activities" gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 }
 
 func (User) TableName() string {

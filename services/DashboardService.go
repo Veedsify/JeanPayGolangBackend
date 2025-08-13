@@ -371,35 +371,33 @@ func GetDashboardSummary(userID uint) (map[string]interface{}, error) {
 }
 
 // GetRecentActivity gets recent activity for a user
-func GetRecentActivity(userID uint32) ([]map[string]interface{}, error) {
+func GetRecentActivity(userID uint) ([]map[string]any, error) {
 	if userID == 0 {
 		return nil, errors.New("user ID is required")
 	}
 
 	// Get recent transactions
-	var transactions []models.Transaction
+	var activities []models.Activity
 	err := database.DB.Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Limit(10).
-		Find(&transactions).Error
+		Find(&activities).Error
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to get recent transactions: %w", err)
+		return nil, fmt.Errorf("failed to get recent activities: %w", err)
 	}
 
-	var activities []map[string]interface{}
-	for _, txn := range transactions {
+	var userActivity []map[string]any
+	for _, txn := range activities {
 		activity := map[string]any{
-			"id":          txn.TransactionID,
-			"type":        string(txn.TransactionType),
-			"status":      string(txn.Status),
-			"description": txn.Description,
-			"created_at":  txn.CreatedAt,
+			"id":         txn.ID,
+			"activity":   txn.Activity,
+			"created_at": txn.CreatedAt,
 		}
-		activities = append(activities, activity)
+		userActivity = append(userActivity, activity)
 	}
 
-	return activities, nil
+	return userActivity, nil
 }
 
 // GetWalletOverview gets wallet overview for a user

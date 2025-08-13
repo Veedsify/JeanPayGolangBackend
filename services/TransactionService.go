@@ -8,6 +8,7 @@ import (
 
 	"github.com/Veedsify/JeanPayGoBackend/database"
 	"github.com/Veedsify/JeanPayGoBackend/database/models"
+	"github.com/Veedsify/JeanPayGoBackend/jobs"
 	"github.com/Veedsify/JeanPayGoBackend/libs"
 	"github.com/Veedsify/JeanPayGoBackend/types"
 	"github.com/Veedsify/JeanPayGoBackend/utils"
@@ -31,6 +32,8 @@ func CreateTransaction(userId uint, transaction types.NewTransactionRequest) (ty
 		return types.CreateNewTransactionResponse{}, "INTERNAL_SERVER_ERROR", errors.New("failed to generate transaction index")
 	}
 	var transactionDir = utils.GetConvertdirection(transaction.FromCurrency)
+	notificationClient := jobs.NewNotificationJobClient()
+
 	switch transaction.MethodOfPayment {
 	case "wallet":
 		fromAmount, err := utils.ConvertStringToFloat(transaction.FromAmount)
@@ -78,6 +81,17 @@ func CreateTransaction(userId uint, transaction types.NewTransactionRequest) (ty
 		if err := database.DB.Create(&transaction).Error; err != nil {
 			return types.CreateNewTransactionResponse{}, "INTERNAL_SERVER_ERROR", errors.New("failed to create transaction")
 		}
+
+		title := "Transaction Successful"
+		message := fmt.Sprintf("Your transfer of %s %s to %s was successful.", transaction.TransactionDetails.FromCurrency, transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.RecipientName)
+
+		notificationClient.EnqueueCreateNotification(
+			user.ID,
+			models.NotificationType("transfer"),
+			title,
+			message,
+		)
+
 		return types.CreateNewTransactionResponse{
 			Transaction: types.TransactionResponse{
 				ID:              transaction.ID,

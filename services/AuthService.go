@@ -2,10 +2,13 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"log"
 
+	"github.com/Veedsify/JeanPayGoBackend/constants"
 	"github.com/Veedsify/JeanPayGoBackend/database"
 	"github.com/Veedsify/JeanPayGoBackend/database/models"
+	"github.com/Veedsify/JeanPayGoBackend/jobs"
 	"github.com/Veedsify/JeanPayGoBackend/libs"
 	"github.com/Veedsify/JeanPayGoBackend/types"
 	"github.com/google/uuid"
@@ -52,12 +55,6 @@ func RegisterUser(user types.RegisterUser) error {
 		return errors.New("sorry this account already exists")
 	}
 
-	emailService, err := NewEmailServiceFromEnv()
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	jwtService, err := libs.NewJWTServiceFromEnv()
 	if err != nil {
 		log.Fatal(err)
@@ -69,8 +66,11 @@ func RegisterUser(user types.RegisterUser) error {
 		return err
 	}
 
-	emailService.SendWelcomeEmail(user.Email, user.FirstName, token)
-
+	emailJob := jobs.NewEmailJobClient()
+	err = emailJob.EnqueueWelcomeEmail(user.Email, user.FirstName, token)
+	if err != nil {
+		fmt.Printf("Error creating welcome email job: %v\n", err)
+	}
 	return nil
 }
 
@@ -152,7 +152,8 @@ func LoginUser(user types.LoginUser) (*libs.TokenPair, string, error) {
 	if err != nil {
 		return &libs.TokenPair{}, "login", err
 	}
-
+	activity := fmt.Sprintf(constants.NewLoginActivityLog, libs.FormatDate(dbUser.CreatedAt))
+	jobs.NewActivityJobClient().EnqueueNewActivity(dbUser.ID, activity)
 	return token, "login", nil
 }
 

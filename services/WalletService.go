@@ -7,6 +7,7 @@ import (
 
 	"github.com/Veedsify/JeanPayGoBackend/database"
 	"github.com/Veedsify/JeanPayGoBackend/database/models"
+	"github.com/Veedsify/JeanPayGoBackend/jobs"
 	"github.com/Veedsify/JeanPayGoBackend/libs"
 	"github.com/Veedsify/JeanPayGoBackend/types"
 	"github.com/Veedsify/JeanPayGoBackend/utils"
@@ -113,6 +114,15 @@ func TopUpWallet(userID uint, req types.TopUpRequest) (*types.TopUpResponse, err
 	if err := database.DB.Create(&transaction).Error; err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
+	notificationClient := jobs.NewNotificationJobClient()
+	title := "Wallet Top Up"
+	message := fmt.Sprintf("Your wallet top-up of %s %s is being processed", utils.FormatCurrency(req.Amount, req.Currency), req.Currency)
+	notificationClient.EnqueueCreateNotification(
+		userID,
+		models.NotificationType("topup"),
+		title,
+		message,
+	)
 
 	return &types.TopUpResponse{
 		TransactionID:    transactionID,
