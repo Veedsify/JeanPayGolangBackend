@@ -7,12 +7,13 @@ import (
 	"github.com/Veedsify/JeanPayGoBackend/database/models"
 	"github.com/Veedsify/JeanPayGoBackend/libs"
 	"github.com/Veedsify/JeanPayGoBackend/services"
+	"github.com/Veedsify/JeanPayGoBackend/types"
 	"github.com/gin-gonic/gin"
 )
 
 // GetUserSettingsEndpoint retrieves user settings
 func GetUserSettingsEndpoint(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	claims, exists := c.Get("user")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error":   true,
@@ -20,8 +21,9 @@ func GetUserSettingsEndpoint(c *gin.Context) {
 		})
 		return
 	}
+	userID := claims.(*libs.JWTClaims).ID
 
-	settings, err := services.GetUserSettings(userID.(uint32))
+	settings, err := services.GetUserSettings(userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   true,
@@ -82,7 +84,7 @@ func UpdateUserProfileImageEndpoint(c *gin.Context) {
 
 // UpdateUserSettingsEndpoint updates user profile information
 func UpdateUserSettingsEndpoint(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	claims, exists := c.Get("user")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error":   true,
@@ -90,7 +92,7 @@ func UpdateUserSettingsEndpoint(c *gin.Context) {
 		})
 		return
 	}
-
+	userID := claims.(*libs.JWTClaims).ID
 	var req services.UpdateUserSettingsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -100,7 +102,7 @@ func UpdateUserSettingsEndpoint(c *gin.Context) {
 		return
 	}
 
-	settings, err := services.UpdateUserSettings(userID.(uint32), req)
+	settings, err := services.UpdateUserSettings(userID, req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   true,
@@ -599,5 +601,42 @@ func DisableTwoFactorEndpoint(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"error":   false,
 		"message": "Two-factor authentication disabled successfully",
+	})
+}
+
+func SettingsWalletEndpoint(c *gin.Context) {
+	claimsAny, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   true,
+			"message": "User not authenticated",
+		})
+		return
+	}
+
+	claims := claimsAny.(*libs.JWTClaims)
+
+	var req types.WalletSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   true,
+			"message": "Invalid request data",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	err := services.UpdateWalletSettings(claims.ID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   true,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"error":   false,
+		"message": "Wallet settings updated successfully",
 	})
 }

@@ -13,14 +13,14 @@ import (
 
 // NotificationData represents notification information
 type NotificationData struct {
-	ID        uint      `json:"id"`
-	UserID    uint      `json:"userId"`
-	Type      string    `json:"type"`
-	Title     string    `json:"title"`
-	Message   string    `json:"message"`
-	Read      bool      `json:"read"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID        uint                    `json:"id"`
+	UserID    uint                    `json:"userId"`
+	Type      models.NotificationType `json:"type"`
+	Title     string                  `json:"title"`
+	Message   string                  `json:"message"`
+	Read      bool                    `json:"read"`
+	CreatedAt time.Time               `json:"createdAt"`
+	UpdatedAt time.Time               `json:"updatedAt"`
 }
 
 // NotificationSummary represents notification summary
@@ -64,8 +64,8 @@ func GetAllNotifications(userID uint32, pagination types.PaginationRequest) (*No
 		notificationData = append(notificationData, NotificationData{
 			ID:        notification.ID,
 			UserID:    notification.UserID,
-			Type:      notification.Type,
-			Title:     getNotificationTitle(notification.Type),
+			Type:      models.NotificationType(notification.Type),
+			Title:     getNotificationTitle(notification.Title),
 			Message:   notification.Message,
 			Read:      notification.Read,
 			CreatedAt: notification.CreatedAt,
@@ -142,7 +142,7 @@ func CreateNotification(userID uint, notificationType, message string) error {
 
 	notification := models.Notification{
 		UserID:  userID,
-		Type:    notificationType,
+		Type:    models.NotificationType(notificationType),
 		Message: message,
 		Read:    false,
 	}
@@ -270,7 +270,7 @@ func GetNotificationsByType(userID uint, notificationType string, pagination typ
 			ID:        notification.ID,
 			UserID:    notification.UserID,
 			Type:      notification.Type,
-			Title:     getNotificationTitle(notification.Type),
+			Title:     getNotificationTitle(notification.Title),
 			Message:   notification.Message,
 			Read:      notification.Read,
 			CreatedAt: notification.CreatedAt,
@@ -318,7 +318,7 @@ func SendNotificationToAllUsers(notificationType, message string) error {
 	for _, user := range users {
 		notifications = append(notifications, models.Notification{
 			UserID:  user.ID,
-			Type:    notificationType,
+			Type:    models.NotificationType(notificationType),
 			Message: message,
 			Read:    false,
 		})
@@ -473,7 +473,7 @@ func CreateNotificationService(request types.CreateNotificationRequest, adminID 
 	response := &types.CreateNotificationResponse{
 		ID:        uint32(notification.ID),
 		UserID:    strconv.Itoa(int(notification.UserID)),
-		Type:      notification.Type,
+		Type:      models.NotificationType(notification.Type),
 		Title:     request.Title,
 		Message:   notification.Message,
 		Read:      notification.Read,
@@ -524,7 +524,7 @@ func GetNotificationDetailsService(notificationID string, userID string, isAdmin
 		ID:        uint32(notification.ID),
 		UserID:    strconv.Itoa(int(notification.UserID)),
 		Type:      notification.Type,
-		Title:     getNotificationTitle(notification.Type),
+		Title:     getNotificationTitle(notification.Title),
 		Message:   notification.Message,
 		Data:      "",
 		Read:      notification.Read,

@@ -23,7 +23,6 @@ func InitDB() {
 	}
 	DB = db
 	autoMigrate(db)
-	SeedDefaultData()
 }
 
 func autoMigrate(db *gorm.DB) {
@@ -40,5 +39,35 @@ func autoMigrate(db *gorm.DB) {
 		&models.WebhookEvent{},
 		&models.Setting{},
 		&models.Activity{},
+		&models.WithdrawMethod{},
+		&models.SavedRecipient{},
+		&models.PlatformSetting{},
 	)
+
+	// Seed admin user if it doesn't exist
+	var count int64
+	db.Model(&models.User{}).Where("email = ?", "admin@jeanpay.africa").Count(&count)
+	hashedPassword, err := libs.HashPassword("password")
+	if err != nil {
+		panic("failed to hash password")
+	}
+	if count == 0 {
+		db.Create(&models.User{
+			FirstName:          "Admin",
+			LastName:           "User",
+			Email:              "admin@jeanpay.africa",
+			Username:           "admin",
+			Password:           hashedPassword, // 🔴 don’t store plaintext passwords!
+			IsAdmin:            true,
+			IsVerified:         true,
+			IsTwoFactorEnabled: false,
+			ProfilePicture:     "/images/defaults/user.jpg",
+			PhoneNumber:        "08012345678",
+			Country:            models.Nigeria,
+			Setting: models.Setting{
+				DefaultCurrency: models.DefaultCurrency("NGN"),
+				FeesBreakdown:   true,
+			},
+		})
+	}
 }

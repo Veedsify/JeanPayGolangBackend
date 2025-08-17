@@ -46,6 +46,7 @@ type Transaction struct {
 	CreatedAt          time.Time            `json:"created_at"`
 	UpdatedAt          time.Time            `json:"updated_at"`
 	DeletedAt          gorm.DeletedAt       `json:"deleted_at" gorm:"index"`
+	Code               string               `json:"code" gorm:"null;index"`
 	UserID             uint                 `json:"user_id" gorm:"not null;index"`
 	TransactionID      string               `json:"transaction_id" gorm:"not null;uniqueIndex"`
 	PaymentType        PaymentType          `json:"payment_type" gorm:"not null"`

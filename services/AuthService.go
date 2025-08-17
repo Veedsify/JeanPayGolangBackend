@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/Veedsify/JeanPayGoBackend/constants"
 	"github.com/Veedsify/JeanPayGoBackend/database"
@@ -152,7 +153,7 @@ func LoginUser(user types.LoginUser) (*libs.TokenPair, string, error) {
 	if err != nil {
 		return &libs.TokenPair{}, "login", err
 	}
-	activity := fmt.Sprintf(constants.NewLoginActivityLog, libs.FormatDate(dbUser.CreatedAt))
+	activity := fmt.Sprintf(constants.NewLoginActivityLog, libs.FormatDate(time.Now()))
 	jobs.NewActivityJobClient().EnqueueNewActivity(dbUser.ID, activity)
 	return token, "login", nil
 }

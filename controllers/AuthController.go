@@ -37,6 +37,16 @@ func LoginUserEndpoint(c *gin.Context) {
 		return
 	}
 
+	if token.IsAdmin {
+		c.SetCookie("admin_token", token.AccessToken, 3600, "/", "", false, true)
+		c.SetCookie("refresh_token", token.RefreshToken, 3600, "/", "", false, true)
+		c.Header("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
+		c.JSON(http.StatusOK, gin.H{
+			"token": token,
+			"error": false,
+		})
+		return
+	}
 	c.SetCookie("token", token.AccessToken, 3600, "/", "", false, true)
 	c.SetCookie("refresh_token", token.RefreshToken, 3600, "/", "", false, true)
 	c.Header("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))

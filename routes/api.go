@@ -32,10 +32,4 @@ func ApiRoutes(router *gin.Engine) {
 		endpoints.SettingsRoutes(protected)
 		endpoints.DashboardRoutes(protected)
 	}
-
-	// Seed routes (public for easy access during development)
-	seed := v1.Group("/")
-	{
-		endpoints.SeedRoutes(seed)
-	}
 }

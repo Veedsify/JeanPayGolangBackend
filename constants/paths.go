@@ -69,6 +69,7 @@ const (
 	SettingsBase             = "/settings"
 	SettingsUpdate           = "/update"
 	SettingsProfilePicture   = "/profile-picture"
+	SettingsWallet           = "/wallet"
 	SettingsChangePassword   = "/change-password"
 	SettingsPreferences      = "/preferences"
 	SettingsProfile          = "/profile"
@@ -84,15 +85,16 @@ const (
 	AdminDashboard = "/dashboard"
 
 	// Admin transaction paths
-	AdminTransactionsBase         = "/admin/transactions"
-	AdminTransactionsAll          = "/all"
-	AdminTransactionsDetails      = "/details/:id"
-	AdminTransactionsApprove      = "/approve/:id"
-	AdminTransactionsReject       = "/reject/:id"
-	AdminTransactionsUpdateStatus = "/status/:id"
+	AdminTransactionsBase     = "/transactions"
+	AdminTransactionsAll      = "/all"
+	AdminTransactionsDetails  = "/details/:id"
+	AdminTransactionsApprove  = "/approve/:id"
+	AdminTransactionsReject   = "/reject/:id"
+	AdminTransactionsStatus   = "/status/:id"
+	AdminTransactionsOverview = "/overview"
 
 	// Admin user paths
-	AdminUsersBase    = "/admin/users"
+	AdminUsersBase    = "/users"
 	AdminUsersAll     = "/all"
 	AdminUsersDetails = "/details/:id"
 	AdminUsersBlock   = "/block/:id"
@@ -100,13 +102,14 @@ const (
 	AdminUsersDelete  = "/delete/:id"
 
 	// Admin rates paths
-	AdminRatesBase    = "/admin/rates"
+	AdminRatesBase    = "/rates"
 	AdminRatesGet     = "/get"
+	AdminRatesAdd     = "/add"
 	AdminRatesUpdate  = "/update"
 	AdminRatesHistory = "/history"
 
 	// Admin logs paths
-	AdminLogsBase          = "/admin/logs"
+	AdminLogsBase          = "/logs"
 	AdminLogsAll           = "/all"
 	AdminLogsNotifications = "/notifications"
 	AdminLogsAudit         = "/audit"

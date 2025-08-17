@@ -14,7 +14,7 @@ const (
 
 type Notification struct {
 	gorm.Model
-	UserID  uint             `json:"user_id" gorm:"not null;uniqueIndex"`
+	UserID  uint             `json:"user_id" gorm:"not null;index"`
 	Type    NotificationType `json:"type" gorm:"not null"`
 	Title   string           `json:"title" gorm:"not null"`
 	Message string           `json:"message" gorm:"not null"`

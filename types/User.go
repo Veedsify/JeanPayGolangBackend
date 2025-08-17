@@ -27,7 +27,7 @@ type UserWallet struct {
 }
 
 type UserResponse struct {
-	ID             int64
+	ID             uint
 	UserID         uint32             `json:"user_id"`
 	Email          string             `json:"email"`
 	ProfilePicture string             `json:"profile_picture"`

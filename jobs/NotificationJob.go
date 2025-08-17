@@ -23,7 +23,7 @@ const (
 // NotificationJobPayload represents the payload for creating a notification
 type NotificationJobPayload struct {
 	UserID  uint                    `json:"user_id"`
-	Type    models.NotifiactionType `json:"type"`
+	Type    models.NotificationType `json:"type"`
 	Title   string                  `json:"title"`
 	Message string                  `json:"message"`
 }
@@ -73,7 +73,7 @@ func (njc *NotificationJobClient) Close() error {
 }
 
 // EnqueueCreateNotification queues a notification creation job
-func (njc *NotificationJobClient) EnqueueCreateNotification(userID uint, notificationType models.NotifiactionType, title string, message string) error {
+func (njc *NotificationJobClient) EnqueueCreateNotification(userID uint, notificationType models.NotificationType, title string, message string) error {
 	payload := NotificationJobPayload{
 		UserID:  userID,
 		Type:    notificationType,

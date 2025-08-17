@@ -488,55 +488,57 @@ type CommonError struct {
 	action      string
 }
 
-func GetErrorFromCode(code string) CommonError {
-	var commonErrors = []CommonError{
-		{
-			code:        "INSUFFICIENT_FUNDS",
-			title:       "Insufficient Funds",
-			description: "Your account balance is not sufficient for this transfer.",
-			action:      "Add funds to your account and try again.",
-		},
-		{
-			code:        "INVALID_AMOUNTS",
-			title:       "Invalid Amounts",
-			description: "The amounts provided for the transfer are invalid.",
-			action:      "Please check the amounts and try again.",
-		},
-		{
-			code:        "INVALID_ACCOUNT",
-			title:       "Invalid Account Details",
-			description: "The recipient account details could not be verified.",
-			action:      "Please check the account details and try again.",
-		},
-		{
-			code:        "NETWORK_ERROR",
-			title:       "Network Connection Error",
-			description: "There was a problem connecting to our payment network.",
-			action:      "Check your internet connection and try again.",
-		},
-		{
-			code:        "RATE_LIMIT",
-			title:       "Too Many Attempts",
-			description: "You have exceeded the maximum number of transfer attempts.",
-			action:      "Please wait a few minutes before trying again.",
-		},
-		{
-			code:        "MAINTENANCE",
-			title:       "Service Temporarily Unavailable",
-			description: "Our payment service is currently under maintenance.",
-			action:      "Please try again in a few minutes.",
-		},
-		{
-			code:        "INTERNAL_SERVER_ERROR",
-			title:       "Internal Server Error",
-			description: "An unexpected error occurred on our server.",
-			action:      "Please try again later or contact support if the issue persists.",
-		},
-	}
+var commonErrors = []CommonError{
+	{
+		code:        "INSUFFICIENT_FUNDS",
+		title:       "Insufficient Funds",
+		description: "Your account balance is not sufficient for this transfer.",
+		action:      "Add funds to your account and try again.",
+	},
+	{
+		code:        "INVALID_AMOUNTS",
+		title:       "Invalid Amounts",
+		description: "The amounts provided for the transfer are invalid.",
+		action:      "Please check the amounts and try again.",
+	},
+	{
+		code:        "INVALID_ACCOUNT",
+		title:       "Invalid Account Details",
+		description: "The recipient account details could not be verified.",
+		action:      "Please check the account details and try again.",
+	},
+	{
+		code:        "NETWORK_ERROR",
+		title:       "Network Connection Error",
+		description: "There was a problem connecting to our payment network.",
+		action:      "Check your internet connection and try again.",
+	},
+	{
+		code:        "RATE_LIMIT",
+		title:       "Too Many Attempts",
+		description: "You have exceeded the maximum number of transfer attempts.",
+		action:      "Please wait a few minutes before trying again.",
+	},
+	{
+		code:        "MAINTENANCE",
+		title:       "Service Temporarily Unavailable",
+		description: "Our payment service is currently under maintenance.",
+		action:      "Please try again in a few minutes.",
+	},
+	{
+		code:        "INTERNAL_SERVER_ERROR",
+		title:       "Internal Server Error",
+		description: "An unexpected error occurred on our server.",
+		action:      "Please try again later or contact support if the issue persists.",
+	},
+}
+
+func GetErrorFromCode(code string) string {
 	for _, err := range commonErrors {
-		if err.code == code {
-			return err
+		if strings.EqualFold(err.code, code) {
+			jsonStr := fmt.Sprintf(`{"code":"%s","title":"%s","description":"%s","action":"%s"}`, err.code, err.title, err.description, err.action)
+			return jsonStr
 		}
 	}
-	return CommonError{}
+	return `{}`
 }

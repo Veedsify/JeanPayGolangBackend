@@ -563,7 +563,7 @@ func createTransactionNotification(tx *gorm.DB, userID uint, txType string, amou
 
 	notification := models.Notification{
 		UserID:  userID,
-		Type:    "transaction_" + txType,
+		Type:    "transfer",
 		Message: message,
 		Read:    false,
 	}
@@ -578,7 +578,7 @@ func createTransactionNotificationDirect(userID uint, txType string, amount floa
 
 	notification := models.Notification{
 		UserID:  userID,
-		Type:    "transaction_" + txType,
+		Type:    "transfer",
 		Message: message,
 		Read:    false,
 	}
@@ -627,26 +627,64 @@ func GetUserTotalBalance(userID uint) (float64, error) {
 	var totalBalance float64
 	var user models.User
 
+	// Load user with wallets first
 	if err := database.DB.Preload("Wallet").Where("id = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, fmt.Errorf("user not found with ID: %d", userID)
 		}
 		return 0, fmt.Errorf("failed to find user: %w", err)
 	}
-	userCountry := user.Country
-	switch userCountry {
-		case "NG":
+
+	// Load settings
+	setting := &models.Setting{}
+	if err := database.DB.Where("user_id = ?", userID).First(&setting).Error; err != nil {
+		return 0, fmt.Errorf("failed to find settings: %w", err)
+	}
+
+	// Use DefaultCurrency from settings if present
+	if setting.DefaultCurrency != "" {
+		switch setting.DefaultCurrency {
+		case "NGN":
 			for _, wallet := range user.Wallet {
 				if wallet.Currency == "NGN" {
-					totalBalance += wallet.Balance
+					totalBalance = wallet.Balance
+					break
 				}
 			}
-		case "GH":
+		case "GHS":
 			for _, wallet := range user.Wallet {
 				if wallet.Currency == "GHS" {
-					totalBalance += wallet.Balance
+					totalBalance = wallet.Balance
+					break
 				}
 			}
+		default:
+			// If DefaultCurrency is set but not recognized, return 0
+			return 0, fmt.Errorf("unsupported default currency: %s", setting.DefaultCurrency)
+		}
+		return totalBalance, nil
+	}
+
+	// Fallback to user's country if DefaultCurrency not set
+	userCountry := user.Country
+	switch userCountry {
+	case "NG":
+		for _, wallet := range user.Wallet {
+			if wallet.Currency == "NGN" {
+				totalBalance = wallet.Balance
+				break
+			}
+		}
+	case "GH":
+		for _, wallet := range user.Wallet {
+			if wallet.Currency == "GHS" {
+				totalBalance = wallet.Balance
+				break
+			}
+		}
+	default:
+		// If country not recognized, return 0
+		return 0, fmt.Errorf("unsupported user country: %s", userCountry)
 	}
 
 	return totalBalance, nil

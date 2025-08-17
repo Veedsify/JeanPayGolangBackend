@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func FetchUser(UserId uint32) (types.UserResponse, error) {
+func FetchUser(UserId uint) (types.UserResponse, error) {
 
 	if UserId == 0 {
 		return types.UserResponse{}, errors.New("user Id Is Required")
@@ -19,12 +19,12 @@ func FetchUser(UserId uint32) (types.UserResponse, error) {
 
 	var userData models.User
 
-	if err := database.DB.Preload("Setting").Where("user_id = ?", UserId).First(&userData).Error; err != nil {
+	if err := database.DB.Preload("Setting").Where("id = ?", UserId).First(&userData).Error; err != nil {
 		return types.UserResponse{}, errors.New("user Data Not Found")
 	}
 
 	response := types.UserResponse{
-		ID:             int64(userData.ID),
+		ID:             userData.ID,
 		UserID:         userData.UserID,
 		Email:          userData.Email,
 		IsAdmin:        userData.IsAdmin,

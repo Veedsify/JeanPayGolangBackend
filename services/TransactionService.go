@@ -46,11 +46,35 @@ func CreateTransaction(userId uint, transaction types.NewTransactionRequest) (ty
 		}
 		for _, wallet := range balances {
 			if wallet.Currency == transaction.FromCurrency {
-				if wallet.Balance < fromAmount {
-					return types.CreateNewTransactionResponse{}, "INSUFFICIENT_FUNDS", errors.New("insufficient wallet balance")
-				}
 				code, err := HandleWalletTransaction(wallet, transaction)
 				if err != nil {
+					transactionId := fmt.Sprintf("TRX%d", TransactionIdx)
+					transaction := models.Transaction{
+						UserID:          user.ID,
+						TransactionID:   transactionId,
+						PaymentType:     models.PaymentType(transaction.Method),
+						Status:          models.TransactionFailed,
+						TransactionType: models.Transfer,
+						Code:            code,
+						Description:     fmt.Sprintf("Transfer %s %s to %s", transaction.FromCurrency, transaction.FromAmount, transaction.RecipientName),
+						Reference:       libs.GenerateUniqueID(),
+						Direction:       transactionDir,
+						TransactionDetails: models.TransactionDetails{
+							ToCurrency:      transaction.ToCurrency,
+							FromCurrency:    transaction.FromCurrency,
+							FromAmount:      fromAmount,
+							ToAmount:        toAmount,
+							RecipientName:   transaction.RecipientName,
+							AccountNumber:   transaction.AccountNumber,
+							BankName:        transaction.BankName,
+							PhoneNumber:     transaction.PhoneNumber,
+							Network:         transaction.Network,
+							MethodOfPayment: transaction.MethodOfPayment,
+						},
+					}
+					if err := database.DB.Create(&transaction).Error; err != nil {
+						return types.CreateNewTransactionResponse{}, "INTERNAL_SERVER_ERROR", errors.New("failed to create transaction")
+					}
 					return types.CreateNewTransactionResponse{}, code, err
 				}
 			}
@@ -62,7 +86,7 @@ func CreateTransaction(userId uint, transaction types.NewTransactionRequest) (ty
 			PaymentType:     models.PaymentType(transaction.Method),
 			Status:          models.TransactionPending,
 			TransactionType: models.Transfer,
-			Description:     fmt.Sprintf("Transfer %s %s to %s", transaction.ToCurrency, transaction.ToAmount, transaction.RecipientName),
+			Description:     fmt.Sprintf("Transfer %s %s to %s", transaction.FromCurrency, transaction.FromAmount, transaction.RecipientName),
 			Reference:       libs.GenerateUniqueID(),
 			Direction:       transactionDir,
 			TransactionDetails: models.TransactionDetails{
@@ -83,7 +107,7 @@ func CreateTransaction(userId uint, transaction types.NewTransactionRequest) (ty
 		}
 
 		title := "Transaction Successful"
-		message := fmt.Sprintf("Your transfer of %s %s to %s was successful.", transaction.TransactionDetails.FromCurrency, transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.RecipientName)
+		message := fmt.Sprintf("Your transfer of %s to %s was successful.", utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency), transaction.TransactionDetails.RecipientName)
 
 		notificationClient.EnqueueCreateNotification(
 			user.ID,
@@ -187,9 +211,6 @@ func HandleWalletTransaction(wallet types.WalletBalance, transaction types.NewTr
 	fromAmount, err := utils.ConvertStringToFloat(transaction.FromAmount)
 	if err != nil {
 		return "INVALID_AMOUNT", errors.New("invalid from amount")
-	}
-	if wallet.Balance < fromAmount && wallet.Currency == transaction.FromCurrency {
-		return "INSUFFICIENT_FUNDS", errors.New("insufficient wallet balance")
 	}
 	code, err := HandleRemoveMoneyFromWallet(wallet, fromAmount)
 	if err != nil {
@@ -430,7 +451,7 @@ func UpdateTransactionStatus(transactionID string, newStatus string, adminID uin
 		return fmt.Errorf("failed to find transaction: %w", err)
 	}
 	// Update transaction
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"status":     newStatus,
 		"updated_at": time.Now(),
 	}

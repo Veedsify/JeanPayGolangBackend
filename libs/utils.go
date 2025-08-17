@@ -189,7 +189,7 @@ func FormatTime(t time.Time) string {
 
 // FormatDate formats date in a standard format
 func FormatDate(t time.Time) string {
-	return t.Format("2006-01-02")
+	return fmt.Sprintf("%d-%02d-%02d : %02d:%d", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute())
 }
 
 // ParseDate parses date string in various formats

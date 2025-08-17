@@ -17,10 +17,10 @@ func FetchUserEndpoint(c *gin.Context) {
 
 	claims := claimsAny.(*libs.JWTClaims)
 
-	response, err := services.FetchUser(claims.UserID)
+	response, err := services.FetchUser(claims.ID)
 
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"message": "user not found in context", "error": true})
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "user not found in context 3", "error": true})
 		return
 	}
 

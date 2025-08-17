@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -69,12 +68,12 @@ func CreateTransactionEndpoint(c *gin.Context) {
 		return
 	}
 	response, code, err := services.CreateTransaction(userID, transaction)
-	fmt.Println(response)
+	codeError := utils.GetErrorFromCode(code)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   true,
 			"message": err.Error(),
-			"code":    utils.GetErrorFromCode(code),
+			"code":    codeError,
 		})
 		return
 	}
@@ -110,17 +109,8 @@ func GetAllTransactionsEndpoint(c *gin.Context) {
 	query.Status = c.Query("status")
 	query.Type = c.Query("type")
 	query.Search = c.Query("search")
-	response, err := services.GetAllTransactionsAdminService(query)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   true,
-			"message": err.Error(),
-		})
-		return
-	}
 	c.JSON(http.StatusOK, gin.H{
 		"error": false,
-		"data":  response,
 	})
 }
 

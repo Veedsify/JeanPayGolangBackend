@@ -7,11 +7,11 @@ import (
 )
 
 type CreateNotificationRequest struct {
-	UserID  uint   `json:"user_id" form:"user_id" binding:"required"`
-	Type    string `json:"type" form:"type" binding:"required"`
-	Title   string `json:"title" form:"title" binding:"required"`
-	Message string `json:"message" form:"message" binding:"required"`
-	Data    string `json:"data" form:"data"`
+	UserID  uint                    `json:"user_id" form:"user_id" binding:"required"`
+	Type    models.NotificationType `json:"type" form:"type" binding:"required"`
+	Title   string                  `json:"title" form:"title" binding:"required"`
+	Message string                  `json:"message" form:"message" binding:"required"`
+	Data    string                  `json:"data" form:"data"`
 }
 
 type UpdateNotificationRequest struct {
@@ -19,13 +19,13 @@ type UpdateNotificationRequest struct {
 }
 
 type NotificationResponse struct {
-	ID        uint      `json:"id"`
-	UserID    uint    `json:"user_id"`
-	Type      string    `json:"type"`
-	Message   string    `json:"message"`
-	Read      bool      `json:"read"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        uint                    `json:"id"`
+	UserID    uint                    `json:"user_id"`
+	Type      models.NotificationType `json:"type"`
+	Message   string                  `json:"message"`
+	Read      bool                    `json:"read"`
+	CreatedAt time.Time               `json:"created_at"`
+	UpdatedAt time.Time               `json:"updated_at"`
 }
 
 type GetNotificationsRequest struct {
@@ -76,25 +76,25 @@ type NotificationQuery struct {
 }
 
 type NotificationDetailsResponse struct {
-	ID        uint32    `json:"id"`
-	UserID    string    `json:"user_id"`
-	Type      string    `json:"type"`
-	Title     string    `json:"title"`
-	Message   string    `json:"message"`
-	Data      string    `json:"data"`
-	Read      bool      `json:"read"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        uint32                  `json:"id"`
+	UserID    string                  `json:"user_id"`
+	Type      models.NotificationType `json:"type"`
+	Title     string                  `json:"title"`
+	Message   string                  `json:"message"`
+	Data      string                  `json:"data"`
+	Read      bool                    `json:"read"`
+	CreatedAt time.Time               `json:"created_at"`
+	UpdatedAt time.Time               `json:"updated_at"`
 }
 
 type CreateNotificationResponse struct {
-	ID        uint32    `json:"id"`
-	UserID    string    `json:"user_id"`
-	Type      string    `json:"type"`
-	Title     string    `json:"title"`
-	Message   string    `json:"message"`
-	Read      bool      `json:"read"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        uint32                  `json:"id"`
+	UserID    string                  `json:"user_id"`
+	Type      models.NotificationType `json:"type"`
+	Title     string                  `json:"title"`
+	Message   string                  `json:"message"`
+	Read      bool                    `json:"read"`
+	CreatedAt time.Time               `json:"created_at"`
 }
 
 func ToNotificationsResponse(notifications []models.Notification) []NotificationResponse {

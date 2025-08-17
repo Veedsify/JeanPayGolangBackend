@@ -20,5 +20,6 @@ func SettingsRoutes(router *gin.RouterGroup) {
 		settings.GET(constants.SettingsTwoFactor, controllers.GenerateTwoFactorQREndpoint)
 		settings.POST(constants.SettingsTwoFactorEnable, controllers.EnableTwoFactorEndpoint)
 		settings.POST(constants.SettingsTwoFactorDisable, controllers.DisableTwoFactorEndpoint)
+		settings.PUT(constants.SettingsWallet, controllers.SettingsWalletEndpoint)
 	}
 }

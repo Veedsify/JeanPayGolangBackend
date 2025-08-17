@@ -8,15 +8,19 @@ import (
 	"github.com/Veedsify/JeanPayGoBackend/database"
 	"github.com/Veedsify/JeanPayGoBackend/database/models"
 	"github.com/Veedsify/JeanPayGoBackend/libs"
+	"github.com/Veedsify/JeanPayGoBackend/types"
 	"gorm.io/gorm"
 )
 
 // UpdateUserSettingsRequest represents user settings update request
+
+type SettingsRequest struct {
+	FeesBreakdown *bool `json:"fees_breakdown,omitempty"`
+	SaveRecipient *bool `json:"save_recipient,omitempty"`
+}
+
 type UpdateUserSettingsRequest struct {
-	FirstName   string `json:"firstName"`
-	LastName    string `json:"lastName"`
-	Email       string `json:"email"`
-	PhoneNumber string `json:"phoneNumber"`
+	Setting SettingsRequest `json:"setting"`
 }
 
 // ChangePasswordRequest represents password change request
@@ -34,13 +38,8 @@ type UserPreferencesRequest struct {
 
 // UserSettingsResponse represents user settings response
 type UserSettingsResponse struct {
-	UserID      uint32 `json:"userId"`
-	FirstName   string `json:"firstName"`
-	LastName    string `json:"lastName"`
-	Email       string `json:"email"`
-	PhoneNumber string `json:"phoneNumber"`
-	Username    string `json:"username"`
-	Country     string `json:"country"`
+	Setting         *models.Setting          `json:"setting,omitempty"`
+	WithdrawMethods *[]models.WithdrawMethod `json:"withdrawMethod,omitempty"`
 }
 
 // UserPreferencesResponse represents user preferences response
@@ -83,17 +82,9 @@ func UpdateUserProfileImage(userId uint, file *multipart.FileHeader) (string, er
 }
 
 // UpdateUserSettings updates user profile information
-func UpdateUserSettings(userID uint32, req UpdateUserSettingsRequest) (*UserSettingsResponse, error) {
+func UpdateUserSettings(userID uint, req UpdateUserSettingsRequest) (any, error) {
 	if userID == 0 {
 		return nil, errors.New("user ID is required")
-	}
-
-	var user models.User
-	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("user not found")
-		}
-		return nil, fmt.Errorf("failed to find user: %w", err)
 	}
 
 	// Start transaction
@@ -104,36 +95,19 @@ func UpdateUserSettings(userID uint32, req UpdateUserSettingsRequest) (*UserSett
 		}
 	}()
 
-	// Check if email is being changed and if it already exists
-	if req.Email != "" && req.Email != user.Email {
-		var existingUser models.User
-		if err := tx.Where("email = ? AND user_id != ?", req.Email, userID).First(&existingUser).Error; err == nil {
-			tx.Rollback()
-			return nil, errors.New("email already exists")
-		}
-	}
-
 	// Update user fields
-	updates := make(map[string]interface{})
+	updates := make(map[string]any)
+	if req.Setting.FeesBreakdown != nil {
+		updates["fees_breakdown"] = req.Setting.FeesBreakdown
+	}
+	if req.Setting.SaveRecipient != nil {
+		updates["save_recipient"] = req.Setting.SaveRecipient
+	}
+	fmt.Println(updates)
 
-	if req.FirstName != "" {
-		updates["first_name"] = req.FirstName
-	}
-	if req.LastName != "" {
-		updates["last_name"] = req.LastName
-	}
-	if req.Email != "" {
-		updates["email"] = req.Email
-	}
-	if req.PhoneNumber != "" {
-		updates["phone_number"] = req.PhoneNumber
-	}
-
-	if len(updates) > 0 {
-		if err := tx.Model(&user).Updates(updates).Error; err != nil {
-			tx.Rollback()
-			return nil, fmt.Errorf("failed to update user settings: %w", err)
-		}
+	if err := tx.Model(&models.Setting{}).Where("user_id = ?", userID).Updates(updates).Error; err != nil {
+		tx.Rollback()
+		return nil, fmt.Errorf("failed to update user settings: %w", err)
 	}
 
 	// Commit transaction
@@ -141,22 +115,7 @@ func UpdateUserSettings(userID uint32, req UpdateUserSettingsRequest) (*UserSett
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	// Refresh user data
-	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
-		return nil, fmt.Errorf("failed to fetch updated user: %w", err)
-	}
-
-	response := &UserSettingsResponse{
-		UserID:      user.UserID,
-		FirstName:   user.FirstName,
-		LastName:    user.LastName,
-		Email:       user.Email,
-		PhoneNumber: user.PhoneNumber,
-		Username:    user.Username,
-		Country:     string(user.Country),
-	}
-
-	return response, nil
+	return "", nil
 }
 
 // ChangeUserPassword changes user password
@@ -253,13 +212,13 @@ func UpdateUserPreferences(userID uint32, req UserPreferencesRequest) (*UserPref
 }
 
 // GetUserSettings retrieves user settings
-func GetUserSettings(userID uint32) (*UserSettingsResponse, error) {
+func GetUserSettings(userID uint) (*UserSettingsResponse, error) {
 	if userID == 0 {
 		return nil, errors.New("user ID is required")
 	}
 
 	var user models.User
-	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := database.DB.Preload("Setting").Preload("WithdrawMethods").Where("id = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("user not found")
 		}
@@ -267,13 +226,8 @@ func GetUserSettings(userID uint32) (*UserSettingsResponse, error) {
 	}
 
 	response := &UserSettingsResponse{
-		UserID:      user.UserID,
-		FirstName:   user.FirstName,
-		LastName:    user.LastName,
-		Email:       user.Email,
-		PhoneNumber: user.PhoneNumber,
-		Username:    user.Username,
-		Country:     string(user.Country),
+		&user.Setting,
+		&user.WithdrawMethods,
 	}
 
 	return response, nil
@@ -412,7 +366,7 @@ type TwoFactorQRResponse struct {
 }
 
 // UpdateUserProfile updates user profile information
-func UpdateUserProfile(userID uint32, req UpdateProfileRequest) (*UserSettingsResponse, error) {
+func UpdateUserProfile(userID uint32, req UpdateProfileRequest) (any, error) {
 	if userID == 0 {
 		return nil, errors.New("user ID is required")
 	}
@@ -478,17 +432,7 @@ func UpdateUserProfile(userID uint32, req UpdateProfileRequest) (*UserSettingsRe
 		return nil, fmt.Errorf("failed to fetch updated user: %w", err)
 	}
 
-	response := &UserSettingsResponse{
-		UserID:      user.UserID,
-		FirstName:   user.FirstName,
-		LastName:    user.LastName,
-		Email:       user.Email,
-		PhoneNumber: user.PhoneNumber,
-		Username:    user.Username,
-		Country:     string(user.Country),
-	}
-
-	return response, nil
+	return user, nil
 }
 
 // UpdateSecuritySettings updates security settings
@@ -722,6 +666,56 @@ func DeactivateAccount(userID uint, reason string) error {
 	if err := CreateSystemNotification(userID, message); err != nil {
 		// Log error but don't fail the operation
 		fmt.Printf("Failed to create system notification: %v\n", err)
+	}
+
+	return nil
+}
+
+func UpdateWalletSettings(ID uint, req types.WalletSettingsRequest) error {
+
+	if ID == 0 {
+		return errors.New("user ID is required")
+	}
+
+	var settings models.Setting
+
+	db := database.DB.Where("user_id = ?", ID).First(&settings)
+	if db.Error != nil {
+		if errors.Is(db.Error, gorm.ErrRecordNotFound) {
+			return errors.New("settings not found")
+		}
+		return fmt.Errorf("failed to find settings: %w", db.Error)
+	}
+
+	// Start transaction
+	tx := database.DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Update settings fields
+	updates := make(map[string]any)
+	if req.Currency != "" {
+		updates["default_currency"] = models.DefaultCurrency(req.Currency)
+	}
+	if req.Username != "" {
+		updates["username"] = req.Username
+	}
+
+	tx.Model(&settings).Updates(updates)
+
+	if tx.Error != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to update wallet settings: %w", tx.Error)
+	}
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	// Refresh settings data
+	if err := database.DB.Where("user_id = ?", ID).First(&settings).Error; err != nil {
+		return fmt.Errorf("failed to fetch updated settings: %w", err)
 	}
 
 	return nil

@@ -48,7 +48,7 @@ func GetDashboardStatsEndpoint(c *gin.Context) {
 	}
 
 	claims := claimsAny.(*libs.JWTClaims)
-	stats, err := services.GetDashboardStats(claims.UserID)
+	stats, err := services.GetDashboardStats(claims.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   true,
@@ -106,7 +106,7 @@ func GetTransactionStatsEndpoint(c *gin.Context) {
 	claims := claimsAny.(*libs.JWTClaims)
 	period := c.DefaultQuery("period", "month")
 
-	stats, err := services.GetDashboardTransactionStats(claims.UserID, period)
+	stats, err := services.GetDashboardTransactionStats(claims.ID, period)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   true,
@@ -134,7 +134,7 @@ func GetDashboardChartsDataEndpoint(c *gin.Context) {
 	}
 
 	claims := claimsAny.(*libs.JWTClaims)
-	stats, err := services.GetDashboardStats(claims.UserID)
+	stats, err := services.GetDashboardStats(claims.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   true,
@@ -250,7 +250,7 @@ func GetConversionStatsEndpoint(c *gin.Context) {
 
 	claims := claimsAny.(*libs.JWTClaims)
 
-	stats, err := services.GetConversionStats(claims.UserID)
+	stats, err := services.GetConversionStats(claims.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   true,
@@ -279,7 +279,7 @@ func GetMonthlyStatsEndpoint(c *gin.Context) {
 
 	claims := claimsAny.(*libs.JWTClaims)
 
-	stats, err := services.GetMonthlyStats(claims.UserID)
+	stats, err := services.GetMonthlyStats(claims.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   true,
@@ -308,7 +308,7 @@ func GetTransactionTrendsEndpoint(c *gin.Context) {
 
 	claims := claimsAny.(*libs.JWTClaims)
 
-	trends, err := services.GetTransactionTrends(claims.UserID)
+	trends, err := services.GetTransactionTrends(claims.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   true,

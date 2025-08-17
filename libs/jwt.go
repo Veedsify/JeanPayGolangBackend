@@ -43,6 +43,7 @@ type TokenPair struct {
 	RefreshToken       string    `json:"refresh_token"`
 	ExpiresAt          time.Time `json:"expires_at"`
 	TokenType          string    `json:"token_type"`
+	IsAdmin            bool      `json:"is_admin"` // Optional, can be nil if not applicable
 	IsTwoFactorEnabled *bool     `json:"is_two_factor_enabled"`
 }
 
@@ -150,6 +151,7 @@ func (j *JWTService) GenerateTokenPair(userInfo *UserInfo) (*TokenPair, error) {
 		RefreshToken: refreshTokenString,
 		ExpiresAt:    accessTokenExpiry,
 		TokenType:    "Bearer",
+		IsAdmin:      userInfo.IsAdmin,
 	}, nil
 }
 

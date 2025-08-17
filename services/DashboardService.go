@@ -104,7 +104,7 @@ func GetDashboardOverview(userID uint) (*types.DashboardOverview, error) {
 }
 
 // GetDashboardStats retrieves detailed dashboard statistics for a user
-func GetDashboardStats(userID uint32) (*types.DashboardStats, error) {
+func GetDashboardStats(userID uint) (*types.DashboardStats, error) {
 	if userID == 0 {
 		return nil, errors.New("user ID is required")
 	}
@@ -117,13 +117,13 @@ func GetDashboardStats(userID uint32) (*types.DashboardStats, error) {
 	// Get monthly transaction counts
 	var monthlyDeposits, monthlyWithdrawals, monthlyConversions int64
 
-	database.DB.Model(&models.Transaction{}).Where("user_id = ? AND transaction_type = ? AND created_at >= ?",
+	database.DB.Model(&models.Transaction{}).Where("id = ? AND transaction_type = ? AND created_at >= ?",
 		userID, "deposit", startOfMonth).Count(&monthlyDeposits)
 
-	database.DB.Model(&models.Transaction{}).Where("user_id = ? AND transaction_type = ? AND created_at >= ?",
+	database.DB.Model(&models.Transaction{}).Where("id = ? AND transaction_type = ? AND created_at >= ?",
 		userID, "withdrawal", startOfMonth).Count(&monthlyWithdrawals)
 
-	database.DB.Model(&models.Transaction{}).Where("user_id = ? AND transaction_type = ? AND created_at >= ?",
+	database.DB.Model(&models.Transaction{}).Where("id = ? AND transaction_type = ? AND created_at >= ?",
 		userID, "conversion", startOfMonth).Count(&monthlyConversions)
 
 	// Get transaction volume for this month and last month
@@ -191,7 +191,7 @@ func GetDashboardStats(userID uint32) (*types.DashboardStats, error) {
 }
 
 // getDailyTransactionData gets daily transaction data for chart
-func getDailyTransactionData(userID uint32, days int) []types.DailyTxnData {
+func getDailyTransactionData(userID uint, days int) []types.DailyTxnData {
 	var result []types.DailyTxnData
 
 	for i := days - 1; i >= 0; i-- {
@@ -226,7 +226,7 @@ func getDailyTransactionData(userID uint32, days int) []types.DailyTxnData {
 }
 
 // getMonthlyVolumeData gets monthly volume data for chart
-func getMonthlyVolumeData(userID uint32, months int) []types.MonthlyVolData {
+func getMonthlyVolumeData(userID uint, months int) []types.MonthlyVolData {
 	var result []types.MonthlyVolData
 
 	for i := months - 1; i >= 0; i-- {
@@ -489,7 +489,7 @@ func GetWalletOverview(userID uint) (map[string]any, error) {
 }
 
 // GetConversionStats gets conversion statistics for a user
-func GetConversionStats(userID uint32) (map[string]interface{}, error) {
+func GetConversionStats(userID uint) (map[string]interface{}, error) {
 	if userID == 0 {
 		return nil, errors.New("user ID is required")
 	}
@@ -543,7 +543,7 @@ func GetConversionStats(userID uint32) (map[string]interface{}, error) {
 }
 
 // GetMonthlyStats gets monthly statistics for a user
-func GetMonthlyStats(userID uint32) (map[string]interface{}, error) {
+func GetMonthlyStats(userID uint) (map[string]interface{}, error) {
 	if userID == 0 {
 		return nil, errors.New("user ID is required")
 	}
@@ -606,7 +606,7 @@ func GetMonthlyStats(userID uint32) (map[string]interface{}, error) {
 }
 
 // GetTransactionTrends gets transaction trends for a user
-func GetTransactionTrends(userID uint32) (map[string]interface{}, error) {
+func GetTransactionTrends(userID uint) (map[string]interface{}, error) {
 	if userID == 0 {
 		return nil, errors.New("user ID is required")
 	}
@@ -650,7 +650,7 @@ func GetTransactionTrends(userID uint32) (map[string]interface{}, error) {
 }
 
 // GetDashboardTransactionStats retrieves transaction statistics for a specific period
-func GetDashboardTransactionStats(userID uint32, period string) (map[string]interface{}, error) {
+func GetDashboardTransactionStats(userID uint, period string) (map[string]interface{}, error) {
 	if userID == 0 {
 		return nil, errors.New("user ID is required")
 	}
