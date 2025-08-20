@@ -11,13 +11,13 @@ func DashboardRoutes(router *gin.RouterGroup) {
 	{
 		dashboard.GET(constants.DashboardOverview, controllers.GetDashboardOverviewEndpoint)
 		dashboard.GET(constants.DashboardStats, controllers.GetDashboardStatsEndpoint)
-		dashboard.GET("/summary", controllers.GetDashboardSummaryEndpoint)
-		dashboard.GET("/recent-activity", controllers.GetRecentActivityEndpoint)
-		dashboard.GET("/wallet-overview", controllers.GetWalletOverviewEndpoint)
-		dashboard.GET("/conversion-stats", controllers.GetConversionStatsEndpoint)
-		dashboard.GET("/monthly-stats", controllers.GetMonthlyStatsEndpoint)
-		dashboard.GET("/transaction-trends", controllers.GetTransactionTrendsEndpoint)
-		dashboard.GET("/transaction-stats", controllers.GetTransactionStatsEndpoint)
-		dashboard.GET("/charts-data", controllers.GetDashboardChartsDataEndpoint)
+		dashboard.GET(constants.DashboardSummary, controllers.GetDashboardSummaryEndpoint)
+		dashboard.GET(constants.DashboardRecentActivity, controllers.GetRecentActivityEndpoint)
+		dashboard.GET(constants.DashboardWalletOverview, controllers.GetWalletOverviewEndpoint)
+		dashboard.GET(constants.DashboardConversionStats, controllers.GetConversionStatsEndpoint)
+		dashboard.GET(constants.DashboardMonthlyStats, controllers.GetMonthlyStatsEndpoint)
+		dashboard.GET(constants.DashboardTransactionTrends, controllers.GetTransactionTrendsEndpoint)
+		dashboard.GET(constants.DashboardTransactionStats, controllers.GetTransactionStatsEndpoint)
+		dashboard.GET(constants.DashboardChartsData, controllers.GetDashboardChartsDataEndpoint)
 	}
 }

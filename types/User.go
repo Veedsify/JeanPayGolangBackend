@@ -45,3 +45,14 @@ type UserResponse struct {
 type VerifyUser struct {
 	Email string `json:"email" form:"email"`
 }
+
+type UserDetailsEditFields struct {
+	ID           uint   `json:"id"`
+	Name         string `json:"name" form:"name"`
+	Email        string `json:"email" form:"email"`
+	ProfileImage string `json:"profile_image" form:"profile_image"`
+	Username     string `json:"username" form:"username"`
+	Phone        string `json:"phone" form:"phone"`
+	IsBlocked    *bool  `json:"is_blocked" form:"is_blocked"`
+	IsVerified   *bool  `json:"is_verified" form:"is_verified"`
+}

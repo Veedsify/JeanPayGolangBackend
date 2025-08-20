@@ -14,7 +14,7 @@ func TransactionRoutes(router *gin.RouterGroup) {
 		transactions.GET(constants.TransactionsUserHistory, controllers.GetUserTransactionHistoryEndpoint)
 		transactions.GET(constants.TransactionsDetails, controllers.GetTransactionDetailsEndpoint)
 		transactions.PUT(constants.TransactionsUpdateStatus, controllers.UpdateTransactionStatusEndpoint)
-		transactions.GET("/stats", controllers.GetTransactionStatsEndpoint)
-		transactions.POST("/filter", controllers.FilterTransactionsEndpoint)
+		transactions.GET(constants.TransactionsStats, controllers.GetTransactionStatsEndpoint)
+		transactions.POST(constants.TransactionsFilter, controllers.FilterTransactionsEndpoint)
 	}
 }

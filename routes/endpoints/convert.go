@@ -12,6 +12,6 @@ func ConvertRoutes(router *gin.RouterGroup) {
 		convert.GET(constants.ConvertRates, controllers.GetExchangeRatesEndpoint)
 		convert.POST(constants.ConvertCalculate, controllers.CalculateConversionEndpoint)
 		convert.POST(constants.ConvertExchange, controllers.ExecuteConversionEndpoint)
-		convert.GET("/history", controllers.GetConversionHistoryEndpoint)
+		convert.GET(constants.ConvertHistory, controllers.GetConversionHistoryEndpoint)
 	}
 }

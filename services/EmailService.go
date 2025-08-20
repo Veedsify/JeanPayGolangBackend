@@ -465,7 +465,7 @@ func (es *EmailService) SendHTMLEmail(to []string, subject, htmlBody string) err
 }
 
 // SendTemplatedEmail sends an email using a template
-func (es *EmailService) SendTemplatedEmail(to []string, templateName string, data map[string]interface{}) error {
+func (es *EmailService) SendTemplatedEmail(to []string, templateName string, data map[string]any) error {
 	template, exists := es.templates[templateName]
 	if !exists {
 		return fmt.Errorf("template '%s' not found", templateName)
@@ -473,7 +473,7 @@ func (es *EmailService) SendTemplatedEmail(to []string, templateName string, dat
 
 	// Ensure required data is present
 	if data == nil {
-		data = make(map[string]interface{})
+		data = make(map[string]any)
 	}
 	data["ServerURL"] = SERVER
 	data["Email"] = strings.Join(to, ", ")
@@ -508,7 +508,7 @@ func (es *EmailService) SendTemplatedEmail(to []string, templateName string, dat
 
 // SendWelcomeEmail sends a welcome email to new users
 func (es *EmailService) SendWelcomeEmail(to, userName, token string) error {
-	data := map[string]interface{}{
+	data := map[string]any{
 		"UserName": userName,
 		"Token":    token,
 	}
@@ -517,7 +517,7 @@ func (es *EmailService) SendWelcomeEmail(to, userName, token string) error {
 
 // SendEmailVerification sends an email verification email
 func (es *EmailService) SendEmailVerification(to, userName, verificationToken string) error {
-	data := map[string]interface{}{
+	data := map[string]any{
 		"UserName":          userName,
 		"VerificationToken": verificationToken,
 	}
@@ -526,7 +526,7 @@ func (es *EmailService) SendEmailVerification(to, userName, verificationToken st
 
 // SendPasswordResetEmail sends a password reset email
 func (es *EmailService) SendPasswordResetEmail(to, resetToken string) error {
-	data := map[string]interface{}{
+	data := map[string]any{
 		"ResetToken": resetToken,
 	}
 	return es.SendTemplatedEmail([]string{to}, "password_reset", data)
@@ -534,7 +534,7 @@ func (es *EmailService) SendPasswordResetEmail(to, resetToken string) error {
 
 // SendTransactionNotification sends a transaction notification email
 func (es *EmailService) SendTransactionNotification(to, transactionType, amount, transactionID string) error {
-	data := map[string]interface{}{
+	data := map[string]any{
 		"TransactionType": transactionType,
 		"Amount":          amount,
 		"TransactionID":   transactionID,
@@ -543,7 +543,7 @@ func (es *EmailService) SendTransactionNotification(to, transactionType, amount,
 }
 
 // renderTemplate renders a template with the given data
-func (es *EmailService) renderTemplate(templateContent string, data map[string]interface{}) (string, error) {
+func (es *EmailService) renderTemplate(templateContent string, data map[string]any) (string, error) {
 	tmpl, err := template.New("email").Parse(templateContent)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse template: %w", err)
@@ -812,17 +812,17 @@ func (es *EmailService) GetStats() *EmailStats {
 }
 
 // UpdateStats updates email statistics (placeholder implementation)
-func (es *EmailService) updateStats(success bool, err error) {
-	if success {
-		emailStats.TotalSent++
-		emailStats.LastSent = time.Now()
-	} else {
-		emailStats.TotalFailed++
-		if err != nil {
-			emailStats.LastError = err.Error()
-		}
-	}
-}
+// func (es *EmailService) updateStats(success bool, err error) {
+// 	if success {
+// 		emailStats.TotalSent++
+// 		emailStats.LastSent = time.Now()
+// 	} else {
+// 		emailStats.TotalFailed++
+// 		if err != nil {
+// 			emailStats.LastError = err.Error()
+// 		}
+// 	}
+// }
 
 // Ensure EmailService implements the EmailSender interface
 var _ interfaces.EmailSender = (*EmailService)(nil)

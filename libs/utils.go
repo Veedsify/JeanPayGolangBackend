@@ -308,6 +308,19 @@ func ConvertStringToUint32(str string) (uint32, error) {
 	return uint32(value), nil
 }
 
+func ConvertStringToUint(str string) (uint, error) {
+	if str == "" {
+		return 0, fmt.Errorf("empty string cannot be converted to uint")
+	}
+
+	value, err := strconv.ParseUint(str, 10, 0)
+	if err != nil {
+		return 0, fmt.Errorf("invalid uint format: %s", str)
+	}
+
+	return uint(value), nil
+}
+
 // TruncateString truncates a string to a maximum length
 func TruncateString(s string, maxLength int) string {
 	if len(s) <= maxLength {
@@ -400,7 +413,7 @@ func SliceFilter[T any](slice []T, fn func(T) bool) []T {
 
 func SecureRandomNumber(length int) (int64, error) {
 	if length <= 0 || length > 18 {
-		return 0, fmt.Errorf("Length must be between 1 and 18")
+		return 0, fmt.Errorf("length must be between 1 and 18")
 	}
 	min := int64Pow(10, length-1)
 	max := int64Pow(10, length) - 1

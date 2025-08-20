@@ -27,5 +27,6 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 	routes.ApiRoutes(router)
+	// Print all routes before running
 	router.Run() // listen and serve on 0.0.0.0:8080
 }

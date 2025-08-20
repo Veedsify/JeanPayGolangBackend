@@ -50,6 +50,7 @@ type Transaction struct {
 	UserID             uint                 `json:"user_id" gorm:"not null;index"`
 	TransactionID      string               `json:"transaction_id" gorm:"not null;uniqueIndex"`
 	PaymentType        PaymentType          `json:"payment_type" gorm:"not null"`
+	Reason             string               `json:"reason" gorm:"default:''"`
 	Status             TransactionStatus    `json:"status" gorm:"default:pending"`
 	TransactionType    TransactionType      `json:"transaction_type" gorm:"not null"`
 	Reference          string               `json:"reference" gorm:"not null;uniqueIndex"`

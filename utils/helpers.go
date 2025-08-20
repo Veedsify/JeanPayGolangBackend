@@ -144,7 +144,7 @@ func TruncateString(s string, maxLength int) string {
 
 // ContainsString checks if a slice contains a specific string
 func ContainsString(slice []string, item string) bool {
-	return ContainsString(slice, item)
+	return strings.Contains(strings.Join(slice, "\n"), item)
 }
 
 // RemoveString removes all occurrences of a string from a slice
@@ -530,6 +530,18 @@ var commonErrors = []CommonError{
 		title:       "Internal Server Error",
 		description: "An unexpected error occurred on our server.",
 		action:      "Please try again later or contact support if the issue persists.",
+	},
+	{
+		code:        "NO_PAYMENT_RECEIVED",
+		title:       "No Payment Received",
+		description: "No payment was received for this transaction.",
+		action:      "Please check your payment method and try again.",
+	},
+	{
+		code:        "TRANSACTION_NOT_FOUND",
+		title:       "Transaction Not Found",
+		description: "The transaction you are looking for does not exist.",
+		action:      "Please check the transaction ID and try again.",
 	},
 }
 

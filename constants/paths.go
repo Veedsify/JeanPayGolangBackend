@@ -32,9 +32,17 @@ const (
 	UsersUpdateProfile = "/profile/update"
 
 	// Dashboard paths
-	DashboardBase     = "/dashboard"
-	DashboardOverview = "/overview"
-	DashboardStats    = "/stats"
+	DashboardBase              = "/dashboard"
+	DashboardOverview          = "/overview"
+	DashboardStats             = "/stats"
+	DashboardSummary           = "/summary"
+	DashboardRecentActivity    = "/recent-activity"
+	DashboardWalletOverview    = "/wallet-overview"
+	DashboardConversionStats   = "/conversion-stats"
+	DashboardMonthlyStats      = "/monthly-stats"
+	DashboardTransactionTrends = "/transaction-trends"
+	DashboardTransactionStats  = "/transaction-stats"
+	DashboardChartsData        = "/charts-data"
 
 	// Wallet paths
 	WalletBase               = "/wallet"
@@ -50,6 +58,7 @@ const (
 	ConvertExchange  = "/exchange"
 	ConvertRates     = "/rates"
 	ConvertCalculate = "/calculate"
+	ConvertHistory   = "/history"
 
 	// Transaction paths
 	TransactionsBase         = "/transactions"
@@ -58,6 +67,8 @@ const (
 	TransactionsDetails      = "/details/:id"
 	TransactionsUpdateStatus = "/status/:id"
 	TransactionsNew          = "/new"
+	TransactionsStats        = "/stats"
+	TransactionsFilter       = "/filter"
 
 	// Notification paths
 	NotificationsBase        = "/notifications"
@@ -94,19 +105,32 @@ const (
 	AdminTransactionsOverview = "/overview"
 
 	// Admin user paths
-	AdminUsersBase    = "/users"
-	AdminUsersAll     = "/all"
-	AdminUsersDetails = "/details/:id"
-	AdminUsersBlock   = "/block/:id"
-	AdminUsersUnblock = "/unblock/:id"
-	AdminUsersDelete  = "/delete/:id"
+	AdminUsersBase         = "/users"
+	AdminUsersAll          = "/all"
+	AdminUsersDetails      = "/details/:id"
+	AdminUserUpdate        = "/update/:id"
+	AdminUsersBlock        = "/block/:id"
+	AdminUsersUnblock      = "/unblock/:id"
+	AdminUsersDelete       = "/delete/:id"
+	AdminUsersSearch       = "/search"
+	AdminUsersTransactions = "/:id/transactions"
+	AdminUsersWallet       = "/:id/wallet"
+	AdminUsersActivityLogs = "/:id/activity-logs"
 
 	// Admin rates paths
-	AdminRatesBase    = "/rates"
-	AdminRatesGet     = "/get"
-	AdminRatesAdd     = "/add"
-	AdminRatesUpdate  = "/update"
-	AdminRatesHistory = "/history"
+	AdminRatesBase       = "/rates"
+	AdminRatesGet        = "/get"
+	AdminRatesAdd        = "/add"
+	AdminRatesUpdate     = "/update"
+	AdminRatesHistory    = "/history"
+	AdminRatesUpdateById = "/:id"
+	AdminRatesToggle     = "/:id/toggle"
+	AdminRatesDelete     = "/:id"
+
+	// Admin transaction additional paths
+	AdminTransactionsPending = "/pending"
+	AdminTransactionsFailed  = "/failed"
+	AdminTransactionsNotes   = "/:id/notes"
 
 	// Admin logs paths
 	AdminLogsBase          = "/logs"

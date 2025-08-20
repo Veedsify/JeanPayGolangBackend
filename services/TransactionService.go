@@ -56,7 +56,7 @@ func CreateTransaction(userId uint, transaction types.NewTransactionRequest) (ty
 						Status:          models.TransactionFailed,
 						TransactionType: models.Transfer,
 						Code:            code,
-						Description:     fmt.Sprintf("Transfer %s %s to %s", transaction.FromCurrency, transaction.FromAmount, transaction.RecipientName),
+						Description:     fmt.Sprintf("Transfer %s %s to %s", transaction.ToCurrency, transaction.ToAmount, transaction.RecipientName),
 						Reference:       libs.GenerateUniqueID(),
 						Direction:       transactionDir,
 						TransactionDetails: models.TransactionDetails{
@@ -624,9 +624,9 @@ func GetUserTransactionHistoryService(userID uint, query types.UserTransactionQu
 	if err := db.Count(&total).Error; err != nil {
 		return nil, errors.New("failed to count transactions")
 	}
-	// Get transactions
+	// Get transactions with preloaded user and transaction details
 	var transactions []models.Transaction
-	err := db.Order("created_at DESC").Offset(offset).Limit(query.Limit).Find(&transactions).Error
+	err := db.Preload("User").Preload("TransactionDetails").Order("created_at DESC").Offset(offset).Limit(query.Limit).Find(&transactions).Error
 	if err != nil {
 		return nil, errors.New("failed to get transactions")
 	}
@@ -634,16 +634,18 @@ func GetUserTransactionHistoryService(userID uint, query types.UserTransactionQu
 	var transactionsWithUsers []types.TransactionWithUser
 	for _, transaction := range transactions {
 		transactionsWithUsers = append(transactionsWithUsers, types.TransactionWithUser{
-			TransactionID:      transaction.TransactionID,
-			UserID:             transaction.UserID,
-			TransactionType:    string(transaction.TransactionType),
-			Status:             string(transaction.Status),
-			Reference:          transaction.Reference,
-			Direction:          string(transaction.Direction),
-			Description:        transaction.Description,
-			CreatedAt:          transaction.CreatedAt,
-			PaymentType:        string(transaction.PaymentType),
-			TransactionDetails: transaction.TransactionDetails,
+			TransactionID:   transaction.TransactionID,
+			UserID:          transaction.UserID,
+			Amount:          transaction.TransactionDetails.FromAmount,
+			Currency:        transaction.TransactionDetails.FromCurrency,
+			TransactionType: transaction.TransactionType,
+			Status:          transaction.Status,
+			Reference:       transaction.Reference,
+			Direction:       transaction.Direction,
+			Code:            transaction.Code,
+			Description:     transaction.Description,
+			CreatedAt:       transaction.CreatedAt,
+			PaymentType:     transaction.PaymentType,
 			User: &types.UserBasicInfo{
 				UserID:    transaction.UserID,
 				FirstName: transaction.User.FirstName,
@@ -782,10 +784,10 @@ func CreateDepositTransactionService(userID uint, request types.CreateDepositReq
 	response := &types.TransactionWithUser{
 		TransactionID:   transaction.TransactionID,
 		UserID:          transaction.UserID,
-		Status:          string(transaction.Status),
-		TransactionType: string(transaction.TransactionType),
+		Status:          transaction.Status,
+		TransactionType: transaction.TransactionType,
 		Reference:       transaction.Reference,
-		Direction:       string(transaction.Direction),
+		Direction:       transaction.Direction,
 		Description:     transaction.Description,
 		CreatedAt:       transaction.CreatedAt,
 	}
@@ -855,10 +857,10 @@ func CreateWithdrawalTransactionService(userID uint, request types.CreateWithdra
 	response := &types.TransactionWithUser{
 		TransactionID:   transaction.TransactionID,
 		UserID:          transaction.UserID,
-		TransactionType: string(transaction.TransactionType),
-		Status:          string(transaction.Status),
+		TransactionType: transaction.TransactionType,
+		Status:          transaction.Status,
 		Reference:       transaction.Reference,
-		Direction:       string(transaction.Direction),
+		Direction:       transaction.Direction,
 		Description:     transaction.Description,
 		CreatedAt:       transaction.CreatedAt,
 		User: &types.UserBasicInfo{

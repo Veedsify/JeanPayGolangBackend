@@ -10,7 +10,6 @@ type CreateRateRequest struct {
 	FromCurrency string  `json:"from_currency" form:"from_currency" binding:"required"`
 	ToCurrency   string  `json:"to_currency" form:"to_currency" binding:"required"`
 	Rate         float64 `json:"rate" form:"rate" binding:"required"`
-	Source       string  `json:"source" form:"source" binding:"required"`
 }
 
 type UpdateRateRequest struct {

@@ -52,19 +52,20 @@ type DashboardResponse struct {
 
 // TransactionWithUser represents transaction with user info
 type TransactionWithUser struct {
-	TransactionID      string                    `json:"transaction_id"`
-	UserID             uint                      `json:"user_id"`
-	Amount             float64                   `json:"amount"`
-	Currency           string                    `json:"currency"`
-	Status             string                    `json:"status"`
-	TransactionType    string                    `json:"transaction_type"`
-	Reference          string                    `json:"reference"`
-	Direction          string                    `json:"direction"`
-	Description        string                    `json:"description"`
-	CreatedAt          time.Time                 `json:"created_at"`
-	PaymentType        string                    `json:"payment_type"`
-	TransactionDetails models.TransactionDetails `json:"transaction_details"`
-	User               *UserBasicInfo            `json:"user,omitempty"`
+	TransactionID   string                      `json:"transaction_id"`
+	UserID          uint                        `json:"user_id"`
+	Amount          float64                     `json:"amount"`
+	Currency        string                      `json:"currency"`
+	Code            string                      `json:"code"`
+	Status          models.TransactionStatus    `json:"status"`
+	TransactionType models.TransactionType      `json:"transaction_type"`
+	Reference       string                      `json:"reference"`
+	Direction       models.TransactionDirection `json:"direction"`
+	Description     string                      `json:"description"`
+	CreatedAt       time.Time                   `json:"created_at"`
+	UpdatedAt       time.Time                   `json:"updated_at"`
+	PaymentType     models.PaymentType          `json:"payment_type"`
+	User            *UserBasicInfo              `json:"user,omitempty"`
 }
 
 // TransactionQueryParams represents query parameters for transactions
@@ -97,18 +98,34 @@ type TransactionDetailsResponse struct {
 
 // UserQueryParams represents query parameters for users
 type UserQueryParams struct {
-	Page    int    `form:"page"`
-	Limit   int    `form:"limit"`
-	Status  string `form:"status"`
-	Blocked string `form:"blocked"`
-	Search  string `form:"search"`
+	Page    int    `form:"page" json:"page"`
+	Limit   int    `form:"limit" json:"limit"`
+	Status  string `form:"status" json:"status"`
+	Blocked string `form:"blocked" json:"blocked"`
+	Search  string `form:"search" json:"search"`
+}
+
+type UserInUserwithWallet struct {
+	ID             uint      `json:"id"`
+	UserID         uint32    `json:"user_id"`
+	FirstName      string    `json:"first_name"`
+	LastName       string    `json:"last_name"`
+	Email          string    `json:"email"`
+	Username       string    `json:"username"`
+	PhoneNumber    string    `json:"phone_number"`
+	IsBlocked      bool      `json:"is_blocked"`
+	IsVerified     bool      `json:"is_verified"`
+	CreatedAt      time.Time `json:"created_at"`
+	IsAdmin        bool      `json:"is_admin"`
+	ProfilePicture string    `json:"profile_picture"` // Assuming ProfilePicture is a field in User model
 }
 
 // UserWithWallet represents user with wallet information
 type UserWithWallet struct {
-	User             models.User    `json:"user"`
-	Wallet           *WalletBalance `json:"wallet"`
-	TransactionCount int64          `json:"transactionCount"`
+	User               UserInUserwithWallet `json:"user"`
+	Wallet             *WalletInfo          `json:"wallet"`
+	TransactionCount   int64                `json:"transactionCount"`
+	RecentTransactions []models.Transaction `json:"recentTransactions"`
 }
 
 // UsersResponse represents paginated users response
@@ -225,22 +242,83 @@ type AdminTransactionResponse struct {
 	Pagination   PaginationInfo        `json:"pagination"`
 }
 
+// TransactionOverviewResponse represents transaction overview analytics
+type TransactionOverviewResponse struct {
+	ByStatus    []StatusCount    `json:"by_status"`
+	ByCurrency  []CurrencyVolume `json:"by_currency"`
+	DailyTrends []DailyTrend     `json:"daily_trends"`
+	Summary     OverviewSummary  `json:"summary"`
+}
+
+// StatusCount represents transaction count by status
+type StatusCount struct {
+	Status string `json:"status"`
+	Count  int64  `json:"count"`
+}
+
+// CurrencyVolume represents transaction volume by currency
+type CurrencyVolume struct {
+	Currency string  `json:"currency"`
+	Volume   float64 `json:"volume"`
+	Count    int64   `json:"count"`
+}
+
+// DailyTrend represents daily transaction trends
+type DailyTrend struct {
+	Date   string  `json:"date"`
+	Count  int64   `json:"count"`
+	Volume float64 `json:"volume"`
+}
+
+// OverviewSummary represents summary statistics
+type OverviewSummary struct {
+	TotalTransactions     int64 `json:"total_transactions"`
+	PendingTransactions   int64 `json:"pending_transactions"`
+	CompletedTransactions int64 `json:"completed_transactions"`
+	FailedTransactions    int64 `json:"failed_transactions"`
+	CancelledTransactions int64 `json:"cancelled_transactions"`
+}
+
 // UserBasicInfo represents basic user information
 type UserBasicInfo struct {
-	UserID      uint   `json:"user_id"`
-	FirstName   string `json:"first_name"`
-	LastName    string `json:"last_name"`
-	Email       string `json:"email"`
-	PhoneNumber string `json:"phone_number"`
+	UserID         uint   `json:"user_id"`
+	FirstName      string `json:"first_name"`
+	ProfilePicture string `json:"profile_picture"`
+	LastName       string `json:"last_name"`
+	Username       string `json:"username"`
+	Email          string `json:"email"`
+	PhoneNumber    string `json:"phone_number"`
 }
 
 // WalletInfo represents wallet information
 type WalletInfo struct {
-	UserID           string  `json:"user_id"`
+	UserID           uint    `json:"user_id"`
 	BalanceNGN       float64 `json:"balance_ngn"`
 	BalanceGHS       float64 `json:"balance_ghs"`
 	TotalDeposits    float64 `json:"total_deposits"`
 	TotalWithdrawals float64 `json:"total_withdrawals"`
 	TotalConversions float64 `json:"total_conversions"`
 	IsActive         bool    `json:"is_active"`
+	WalletIDNGN      uint64  `json:"wallet_id_ngn"`
+	WalletIDGHS      uint64  `json:"wallet_id_ghs"`
+}
+
+type TransactionDetails struct {
+	TransactionID   uint    `json:"transaction_id" gorm:"not null;index"`
+	RecipientName   string  `json:"recipient_name"`
+	AccountNumber   string  `json:"account_number"`
+	BankName        string  `json:"bank_name"`
+	PhoneNumber     string  `json:"phone_number"`
+	Network         string  `json:"network"`
+	FromCurrency    string  `json:"from_currency"`
+	ToCurrency      string  `json:"to_currency"`
+	FromAmount      float64 `json:"from_amount"`
+	ToAmount        float64 `json:"to_amount"`
+	MethodOfPayment string  `json:"method_of_payment"`
+}
+
+type AdminTransactionDetailRepsonse struct {
+	Transaction        TransactionWithUser `json:"transaction"`
+	User               UserBasicInfo       `json:"user"`
+	TransactionDetails TransactionDetails  `json:"transaction_details"`
 }

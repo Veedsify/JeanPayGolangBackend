@@ -10,7 +10,7 @@ type AdminLog struct {
 	Action    string `json:"action" gorm:"not null"`
 	Target    string `json:"target" gorm:"not null"` // e.g., 'transaction', 'user', 'rate'
 	TargetID  string `json:"target_id" gorm:"not null"`
-	Details   string `json:"details" gorm:"type:jsonb"`
+	Details   string `json:"details" gorm:"type:string"`
 	IPAddress string `json:"ip_address"`
 	UserAgent string `json:"user_agent"`
 }
