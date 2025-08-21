@@ -661,7 +661,11 @@ func GetAdminTransactionsOverview() (types.OverviewSummary, error) {
 func GetAdminRatesHistory(cursor uint, limit int, searchQuery string) ([]types.RateResponse, uint, error) {
 	db := database.DB
 	var rates []models.Rate
-	query := db.Limit(limit).Order("id DESC").Where("LOWER(from_currency) LIKE ? OR LOWER(to_currency) LIKE ?", "%"+strings.ToLower(searchQuery)+"%", "%"+strings.ToLower(searchQuery)+"%")
+	query := db.Limit(limit).Order("id DESC")
+	if searchQuery != "" {
+		searchTerm := "%" + strings.ToLower(searchQuery) + "%"
+		query = query.Where("LOWER(from_currency) LIKE ? OR LOWER(to_currency) LIKE ? OR CAST(rate AS CHAR) LIKE ?", searchTerm, searchTerm, "%"+searchQuery+"%")
+	}
 
 	// only apply the cursor if it's not the "first page"
 	if cursor > 0 {
@@ -1203,13 +1207,79 @@ func AddTransactionNote(transactionID string, note string, adminID uint) (types.
 }
 
 // GetUserActivityLogs retrieves activity logs for a specific user
-func GetUserActivityLogs(userID string) ([]models.Activity, error) {
+func GetUserActivityLogs(userID uint) ([]models.Activity, error) {
 	db := database.DB
 	var activities []models.Activity
 
-	if err := db.Where("user_id = ?", userID).Order("created_at DESC").Limit(100).Find(&activities).Error; err != nil {
-		return nil, err
+	if err := db.Where("user_id = ?", userID).Order("created_at DESC").Find(&activities).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch user activities: %w", err)
 	}
 
 	return activities, nil
+}
+
+// ToggleUserTwoFactor toggles two-factor authentication for a user
+func ToggleUserTwoFactor(userID uint, enabled bool, adminID uint) (types.AdminActionResponse, error) {
+	db := database.DB
+	var response types.AdminActionResponse
+
+	// Start transaction
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Find the user
+	var user models.User
+	if err := tx.Where("id = ?", userID).First(&user).Error; err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return response, fmt.Errorf("user not found")
+		}
+		return response, fmt.Errorf("failed to find user: %w", err)
+	}
+
+	// Update user's two-factor status
+	if err := tx.Model(&user).Update("is_two_factor_enabled", enabled).Error; err != nil {
+		tx.Rollback()
+		return response, fmt.Errorf("failed to update user two-factor status: %w", err)
+	}
+
+	// Log admin action
+	action := "DISABLE_USER_TWO_FACTOR"
+	details := fmt.Sprintf("Two-factor authentication disabled for user %d", user.UserID)
+	if enabled {
+		action = "ENABLE_USER_TWO_FACTOR"
+		details = fmt.Sprintf("Two-factor authentication enabled for user %d", user.UserID)
+	}
+
+	adminLog := models.AdminLog{
+		AdminID:  uint32(adminID),
+		Action:   action,
+		Target:   "user",
+		TargetID: fmt.Sprintf("%d", userID),
+		Details:  details,
+	}
+
+	if err := tx.Create(&adminLog).Error; err != nil {
+		log.Printf("Failed to log admin action: %v", err)
+		// Don't fail the whole operation for logging issues
+	}
+
+	tx.Commit()
+
+	message := "User two-factor authentication disabled successfully"
+	if enabled {
+		message = "User two-factor authentication enabled successfully"
+	}
+
+	response = types.AdminActionResponse{
+		Success:   true,
+		Message:   message,
+		Timestamp: time.Now(),
+	}
+
+	return response, nil
 }

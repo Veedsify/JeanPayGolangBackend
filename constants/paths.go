@@ -95,6 +95,11 @@ const (
 	AdminLogin     = "/login"
 	AdminDashboard = "/dashboard"
 
+	// Admin settings paths
+	AdminSettingsBase   = "/settings"
+	AdminSettingsGet    = "/get"
+	AdminSettingsUpdate = "/update"
+
 	// Admin transaction paths
 	AdminTransactionsBase     = "/transactions"
 	AdminTransactionsAll      = "/all"
@@ -116,6 +121,7 @@ const (
 	AdminUsersTransactions = "/:id/transactions"
 	AdminUsersWallet       = "/:id/wallet"
 	AdminUsersActivityLogs = "/:id/activity-logs"
+	AdminUsersTwoFactor    = "/:id/two-factor"
 
 	// Admin rates paths
 	AdminRatesBase       = "/rates"

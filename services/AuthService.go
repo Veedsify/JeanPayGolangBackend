@@ -12,6 +12,7 @@ import (
 	"github.com/Veedsify/JeanPayGoBackend/jobs"
 	"github.com/Veedsify/JeanPayGoBackend/libs"
 	"github.com/Veedsify/JeanPayGoBackend/types"
+	"github.com/Veedsify/JeanPayGoBackend/utils"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -94,40 +95,27 @@ func LoginUser(user types.LoginUser) (*libs.TokenPair, string, error) {
 		return &libs.TokenPair{}, "verify", errors.New("your Account Is Not Verified")
 	}
 
+	if dbUser.IsBlocked {
+		return &libs.TokenPair{}, "login", errors.New("your account has been disabled, please contact support")
+	}
+
 	if dbUser.IsTwoFactorEnabled {
 		enabled := true
 
-		// jwtService, err := libs.NewJWTServiceFromEnv()
-		// if err != nil {
-		// 	log.Fatal(err)
-		// }
-		// emailToken, err := jwtService.GenerateEmailVerificationToken(dbUser.UserId, dbUser.Email)
-		// if err != nil {
-		// 	return &libs.TokenPair{}, err
-		// }
-		// htmlEmail := new(strings.Builder)
-		// template.Must(template.New("email").Parse(`
-		// 	<div>
-		// 	    {{.FirstName}} {{.LastName}}<br>
-		// 	    {{.Email}}<br>
-		// 	    Here is your email token:
-		// 	    <a href="http://localhost:8080/verify-email/{{.EmailToken}}">HERE</a>
-		// 	</div>
-		// 	`)).Execute(htmlEmail, map[string]string{
-		// 	"FirstName":  dbUser.FirstName,
-		// 	"LastName":   dbUser.LastName,
-		// 	"Email":      dbUser.Email,
-		// 	"EmailToken": emailToken,
-		// })
+		randomVerificationCode := libs.GenerateOTP(6)
 
-		// verifyUser, err := NewEmailServiceFromEnv()
-		// if err != nil {
-		// 	return &libs.TokenPair{}, err
-		// }
+		// deterministic hash for Redis key
+		hashedKey := libs.SHA256(randomVerificationCode)
 
-		// if err := verifyUser.SendHTMLEmail([]string{dbUser.Email}, "Verify Your Account", htmlEmail.String()); err != nil {
-		// 	return &libs.TokenPair{}, err
-		// }
+		redisClient := utils.NewRedisClient()
+		cacheKey := fmt.Sprintf("two_factor:%s", hashedKey)
+
+		// store userID, expire in 10 min
+		utils.SetRedisKey(redisClient, cacheKey, dbUser.ID, time.Minute*10)
+
+		// send raw code to user
+		emailClient := jobs.NewEmailJobClient()
+		emailClient.EnqueueTwoFactorEmail(dbUser.Email, dbUser.FirstName, randomVerificationCode)
 
 		return &libs.TokenPair{
 			IsTwoFactorEnabled: &enabled,
@@ -257,4 +245,52 @@ func ResetPassword(token string, password string) error {
 
 	return nil
 
+}
+
+func VerifyOtp(code string) (*libs.TokenPair, string, error) {
+	hashedKey := libs.SHA256(code)
+
+	redisClient := utils.NewRedisClient()
+	cacheKey := fmt.Sprintf("two_factor:%s", hashedKey)
+
+	// get userID from cache
+	cachedUserId, err := utils.GetRedisValue(redisClient, cacheKey)
+
+	if err != nil {
+		return &libs.TokenPair{}, "login", errors.New("invalid or expired code")
+	}
+
+	if cachedUserId == "" {
+		return &libs.TokenPair{}, "login", errors.New("invalid or expired code")
+	}
+
+	// success: delete OTP after use
+	utils.DeleteRedisKey(redisClient, cacheKey)
+
+	jwtService, err := libs.NewJWTServiceFromEnv()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var dbUser models.User
+	if err := database.DB.Where("id = ?", cachedUserId).First(&dbUser).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &libs.TokenPair{}, "login", errors.New("invalid Email Address Or Password")
+		}
+	}
+
+	loggedInUser := &libs.UserInfo{
+		ID:      dbUser.ID,
+		UserID:  dbUser.UserID,
+		Email:   dbUser.Email,
+		IsAdmin: dbUser.IsAdmin,
+	}
+
+	token, err := jwtService.GenerateTokenPair(loggedInUser)
+	if err != nil {
+		return &libs.TokenPair{}, "login", err
+	}
+	activity := fmt.Sprintf(constants.NewLoginActivityLog, libs.FormatDate(time.Now()))
+	jobs.NewActivityJobClient().EnqueueNewActivity(dbUser.ID, activity)
+	return token, "login", nil
 }

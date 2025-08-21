@@ -363,6 +363,50 @@ You can view your complete transaction history in your JeanPay account dashboard
 Best regards,
 The JeanPay Team`,
 	}
+
+	es.templates["two_factor_authentication"] = &EmailTemplate{
+		Name:    "two_factor_authentication",
+		Subject: "Two-Factor Authentication - JeanPay",
+		HTMLContent: `
+<!DOCTYPE html>
+		<html>
+		<head>
+						<meta charset="UTF-8">
+						<meta name="viewport" content="width=device-width, initial-scale=1.0">
+						<title>Two-Factor Authentication</title>
+						<style>
+										body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+										.container { max-width: 600px; margin: 0 auto; padding: 20px; }
+										.header { background-color: #17a2b8; color: white; padding: 20px; text-align: center; }
+										.content { padding: 20px; background-color: #f9f9f9; }
+										.button { display: inline-block; padding: 12px 24px; background-color: #17a2b8; color: white; text-decoration: none; border-radius: 5px; margin: 15px 0; }
+										.footer { padding: 20px; text-align: center; color: #666; font-size: 12px; }
+										.code-box { font-size: 24px; font-weight: bold; background: #e9ecef; padding: 10px 20px; border-radius: 5px; display: inline-block; margin: 15px 0; letter-spacing: 2px; }
+						</style>
+		</head>
+		<body>
+						<div class="container">
+										<div class="header">
+														<h1>Two-Factor Authentication</h1>
+										</div>
+										<div class="content">
+														<h2>Hello {{.UserName}}!</h2>
+														<p> Your login verification codew:</p>
+	<div class="code-box" style="font-size: 24px; font-weight: bold; background: #e9ecef; padding: 10px 20px; border-radius: 5px; display: inline-block; margin: 15px 0; letter-spacing: 2px;">
+															{{.VerificationCode}}
+														</div>
+														<p>This code will expire in 10 minutes.</p>
+														<p>If you did not request this verification, please ignore this email.</p>
+										</div>
+										<div class="footer">
+														<p>Best regards,<br>The JeanPay Team</p>
+														<p>This email was sent to {{.Email}}.</p>
+										</div>
+						</div>
+		</body>
+		</html>
+		`,
+	}
 }
 
 // SendEmail sends an email message with retry logic
@@ -555,6 +599,15 @@ func (es *EmailService) renderTemplate(templateContent string, data map[string]a
 	}
 
 	return buf.String(), nil
+}
+
+// Send TwoFactorAuthenticationEmail sends a 2FA email
+func (es *EmailService) SendTwoFactorAuthenticationEmail(to, userName, verificationCode string) error {
+	data := map[string]any{
+		"UserName":         userName,
+		"VerificationCode": verificationCode,
+	}
+	return es.SendTemplatedEmail([]string{to}, "two_factor_authentication", data)
 }
 
 // validateMessage validates an email message

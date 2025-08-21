@@ -22,6 +22,7 @@ const (
 	TypePasswordResetEmail      = "email:password_reset"
 	TypeTransactionNotification = "email:transaction_notification"
 	TypeEmailVerification       = "email:verification"
+	TypeTwoFactorEmail          = "email:two_factor_authentication"
 )
 
 // Base email job payload
@@ -225,6 +226,37 @@ func (ejc *EmailJobClient) EnqueueEmailVerification(email, userName, verificatio
 	return nil
 }
 
+// EnqueueTwoFactorEmail queues a two-factor authentication email job
+func (ejc *EmailJobClient) EnqueueTwoFactorEmail(email, userName, verificationLink string) error {
+	payload := EmailJobPayload{
+		To:         []string{email},
+		Subject:    "Two-Factor Authentication Code - JeanPay",
+		TemplateID: "two_factor_auth",
+		Data: map[string]any{
+			"user_name":         userName,
+			"verification_link": verificationLink,
+		},
+		Priority: "high",
+	}
+	task, err := createEmailTask(TypeTwoFactorEmail, payload)
+	if err != nil {
+		return fmt.Errorf("failed to create two-factor email task: %w", err)
+	}
+
+	opts := []asynq.Option{
+		asynq.Queue("high"),
+		asynq.MaxRetry(3),
+		asynq.Timeout(5 * time.Minute),
+	}
+
+	info, err := ejc.client.Enqueue(task, opts...)
+	if err != nil {
+		return fmt.Errorf("failed to enqueue two-factor email task: %w", err)
+	}
+	log.Printf("Enqueued two-factor email task: id=%s queue=%s", info.ID, info.Queue)
+	return nil
+}
+
 // EnqueueScheduledEmail queues an email to be sent at a specific time
 func (ejc *EmailJobClient) EnqueueScheduledEmail(payload EmailJobPayload, scheduledAt time.Time) error {
 	payload.ScheduledAt = &scheduledAt
@@ -283,6 +315,32 @@ func HandleWelcomeEmailTask(ctx context.Context, t *asynq.Task) error {
 	}
 
 	log.Printf("Welcome email sent successfully to: %s", payload.To[0])
+	return nil
+}
+
+// HandleTwoFactorEmailTask handles two-factor authentication email delivery
+
+func HandleTwoFactorEmailTask(ctx context.Context, t *asynq.Task) error {
+	var payload EmailJobPayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		return fmt.Errorf("failed to unmarshal two-factor email payload: %v: %w", err, asynq.SkipRetry)
+	}
+
+	if err := validateEmailPayload(payload); err != nil {
+		return fmt.Errorf("invalid two-factor email payload: %v: %w", err, asynq.SkipRetry)
+	}
+
+	emailSender := interfaces.GetGlobalEmailSender()
+	if emailSender == nil {
+		return fmt.Errorf("email sender not initialized")
+	}
+
+	err := emailSender.SendTwoFactorAuthenticationEmail(payload.To[0], payload.Data["user_name"].(string), payload.Data["verification_link"].(string))
+	if err != nil {
+		return fmt.Errorf("failed to send two-factor email: %w", err)
+	}
+
+	log.Printf("Two-factor email sent successfully to: %s", payload.To[0])
 	return nil
 }
 

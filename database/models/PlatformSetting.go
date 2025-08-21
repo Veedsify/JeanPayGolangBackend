@@ -17,6 +17,13 @@ type PlatformSetting struct {
 	MaximumTransactionAmount     float64         `json:"maximum_transaction_amount" gorm:"default:1000000.00"`
 	DailyTransactionLimit        float64         `json:"daily_transaction_limit" gorm:"default:500000.00"`
 	ChartStyle                   ChartStyle      `json:"chart_style" gorm:"default:'line'"`
+	Theme                        string          `json:"theme" gorm:"default:'light'"`
+	EmailNotifications           bool            `json:"email_notifications" gorm:"default:true"`
+	SMSNotifications             bool            `json:"sms_notifications" gorm:"default:false"`
+	PushNotifications            bool            `json:"push_notifications" gorm:"default:true"`
+	EnforceTwoFactor             bool            `json:"enforce_two_factor" gorm:"default:false"`
+	SessionTimeoutMinutes        float64         `json:"session_timeout_minutes" gorm:"default:30"`
+	PasswordExpiryDays           float64         `json:"password_expiry_days" gorm:"default:90"`
 	SendTransactionSuccessEmail  bool            `json:"send_transaction_success_email" gorm:"default:true"`
 	SendTransactionDeclineEmail  bool            `json:"send_transaction_decline_email" gorm:"default:true"`
 	SendTransactionPendingEmail  bool            `json:"send_transaction_pending_email" gorm:"default:true"`

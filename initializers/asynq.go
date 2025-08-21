@@ -114,6 +114,7 @@ func registerHandlers(mux *asynq.ServeMux) {
 	mux.HandleFunc(jobs.TypePasswordResetEmail, jobs.HandlePasswordResetEmailTask)
 	mux.HandleFunc(jobs.TypeTransactionNotification, jobs.HandleTransactionNotificationTask)
 	mux.HandleFunc(jobs.TypeEmailVerification, jobs.HandleEmailVerificationTask)
+	mux.HandleFunc(jobs.TypeTwoFactorEmail, jobs.HandleTwoFactorEmailTask)
 	// Activity Log
 	mux.HandleFunc(jobs.TypeActivityLog, jobs.HandleActivityJobTask)
 	// Notification Log

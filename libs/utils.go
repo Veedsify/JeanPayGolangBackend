@@ -2,6 +2,7 @@ package libs
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"math"
@@ -454,4 +455,10 @@ func GetDefaultCurrency(country string) string {
 	default:
 		return "NGN"
 	}
+}
+
+func SHA256(value string) string {
+	hasher := sha256.New()
+	hasher.Write([]byte(value))
+	return hex.EncodeToString(hasher.Sum(nil))
 }

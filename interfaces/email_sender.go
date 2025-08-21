@@ -22,6 +22,9 @@ type EmailSender interface {
 
 	// SendHTMLEmail sends an HTML email
 	SendHTMLEmail(to []string, subject, htmlBody string) error
+
+	// SendTwoFactorAuthenticationEmail sends a 2FA email
+	SendTwoFactorAuthenticationEmail(to, userName, verificationUrl string) error
 }
 
 // EmailJobHandler defines the interface for handling email jobs

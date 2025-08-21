@@ -916,6 +916,58 @@ func GetPendingTransactions(c *gin.Context) {
 	})
 }
 
+// AdminGetPlatformSettings retrieves platform-wide settings for admin
+func AdminGetPlatformSettings(c *gin.Context) {
+	// Only allow admins
+	userInterface, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": true, "message": "Admin authentication required"})
+		return
+	}
+	user, ok := userInterface.(*libs.JWTClaims)
+	if !ok || !user.IsAdmin {
+		c.JSON(http.StatusForbidden, gin.H{"error": true, "message": "Admin privileges required"})
+		return
+	}
+
+	settings, err := services.GetPlatformSettings()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": true, "message": "Failed to retrieve platform settings", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"error": false, "message": "Platform settings retrieved successfully", "data": settings})
+}
+
+// AdminUpdatePlatformSettings updates platform-wide settings
+func AdminUpdatePlatformSettings(c *gin.Context) {
+	// Only allow admins
+	userInterface, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": true, "message": "Admin authentication required"})
+		return
+	}
+	user, ok := userInterface.(*libs.JWTClaims)
+	if !ok || !user.IsAdmin {
+		c.JSON(http.StatusForbidden, gin.H{"error": true, "message": "Admin privileges required"})
+		return
+	}
+
+	var req services.PlatformSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": true, "message": "Invalid request body", "details": err.Error()})
+		return
+	}
+
+	settings, err := services.UpdatePlatformSettings(req, user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": true, "message": "Failed to update platform settings", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"error": false, "message": "Platform settings updated successfully", "data": settings})
+}
+
 // GetFailedTransactions retrieves all failed transactions
 func GetFailedTransactions(c *gin.Context) {
 	var params types.AdminTransactionQuery
@@ -1024,7 +1076,17 @@ func GetUserActivityLogs(c *gin.Context) {
 		return
 	}
 
-	activities, err := services.GetUserActivityLogs(userID)
+	userId, err := libs.ConvertStringToUint(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   true,
+			"message": "Invalid User ID format",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	activities, err := services.GetUserActivityLogs(userId)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   true,
@@ -1038,5 +1100,82 @@ func GetUserActivityLogs(c *gin.Context) {
 		"error":   false,
 		"message": "User activity logs retrieved successfully",
 		"data":    activities,
+	})
+}
+
+// ToggleUserTwoFactor toggles two-factor authentication for a user
+func ToggleUserTwoFactor(c *gin.Context) {
+	userID := c.Param("id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   true,
+			"message": "User ID is required",
+		})
+		return
+	}
+
+	var request struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   true,
+			"message": "Invalid request format",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Get user from context
+	userInterface, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   true,
+			"message": "Admin authentication required",
+		})
+		return
+	}
+
+	user, ok := userInterface.(*libs.JWTClaims)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   true,
+			"message": "Invalid user context",
+		})
+		return
+	}
+
+	if !user.IsAdmin {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":   true,
+			"message": "Admin privileges required",
+		})
+		return
+	}
+
+	userId, err := libs.ConvertStringToUint(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   true,
+			"message": "Invalid User ID format",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	response, err := services.ToggleUserTwoFactor(userId, request.Enabled, user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   true,
+			"message": "Failed to toggle user two-factor authentication",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"error":   false,
+		"message": response.Message,
+		"data":    response,
 	})
 }

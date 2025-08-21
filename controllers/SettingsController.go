@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/Veedsify/JeanPayGoBackend/database"
@@ -92,6 +93,7 @@ func UpdateUserSettingsEndpoint(c *gin.Context) {
 		})
 		return
 	}
+	fmt.Println("Claims:", claims)
 	userID := claims.(*libs.JWTClaims).ID
 	var req services.UpdateUserSettingsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -589,7 +591,7 @@ func DisableTwoFactorEndpoint(c *gin.Context) {
 		return
 	}
 
-	err := services.DisableTwoFactorAuthentication(claims.ID, req)
+	err := services.DisableTwoFactorAuthentication(uint(claims.UserID), req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   true,

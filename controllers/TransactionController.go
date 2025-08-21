@@ -83,37 +83,6 @@ func CreateTransactionEndpoint(c *gin.Context) {
 	})
 }
 
-// GetAllTransactionsEndpoint returns all transactions (Admin only)
-func GetAllTransactionsEndpoint(c *gin.Context) {
-	// Check if user is admin
-	isAdmin, exists := c.Get("is_admin")
-	if !exists || !isAdmin.(bool) {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error":   true,
-			"message": "Admin access required",
-		})
-		return
-	}
-	var query types.TransactionQueryParams
-	// Parse query parameters
-	if page := c.Query("page"); page != "" {
-		if p, err := strconv.Atoi(page); err == nil {
-			query.Page = p
-		}
-	}
-	if limit := c.Query("limit"); limit != "" {
-		if l, err := strconv.Atoi(limit); err == nil {
-			query.Limit = l
-		}
-	}
-	query.Status = c.Query("status")
-	query.Type = c.Query("type")
-	query.Search = c.Query("search")
-	c.JSON(http.StatusOK, gin.H{
-		"error": false,
-	})
-}
-
 // GetUserTransactionHistoryEndpoint returns user's transaction history
 func GetUserTransactionHistoryEndpoint(c *gin.Context) {
 	// Get user ID from JWT token

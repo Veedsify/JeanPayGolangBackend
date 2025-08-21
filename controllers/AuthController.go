@@ -136,3 +136,42 @@ func ResetPasswordEndpoint(c *gin.Context) {
 	})
 
 }
+
+func VerifyOtpEndpoint(c *gin.Context) {
+	var otp struct {
+		Code string `json:"code" binding:"required"`
+	}
+	if err := c.ShouldBind(&otp); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error(), "error": true})
+		return
+	}
+
+	if otp.Code == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "OTP and User ID are required", "error": true})
+		return
+	}
+
+	token, code, err := services.VerifyOtp(otp.Code)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error(), "error": true, "action": code})
+		return
+	}
+
+	if token.IsAdmin {
+		c.SetCookie("admin_token", token.AccessToken, 3600, "/", "", false, true)
+		c.SetCookie("refresh_token", token.RefreshToken, 3600, "/", "", false, true)
+		c.Header("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
+		c.JSON(http.StatusOK, gin.H{
+			"token": token,
+			"error": false,
+		})
+		return
+	}
+	c.SetCookie("token", token.AccessToken, 3600, "/", "", false, true)
+	c.SetCookie("refresh_token", token.RefreshToken, 3600, "/", "", false, true)
+	c.Header("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
+	c.JSON(http.StatusOK, gin.H{
+		"token": token,
+		"error": false,
+	})
+}

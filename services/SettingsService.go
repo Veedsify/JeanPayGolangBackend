@@ -137,7 +137,7 @@ func ChangeUserPassword(userID uint, req ChangePasswordRequest) error {
 	}
 
 	var user models.User
-	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errors.New("user not found")
 		}
@@ -521,6 +521,260 @@ func UpdateNotificationSettings(userID uint32, req UpdateNotificationSettingsReq
 	}
 
 	return response, nil
+}
+
+// Platform settings types for admin endpoints
+type PlatformSettingsRequest struct {
+	KYCEnforcement     *bool  `json:"kycEnforcement"`
+	ManualRateOverride *bool  `json:"manualRateOverride"`
+	DefaultCurrency    string `json:"defaultCurrency"`
+	TransactionEmails  *bool  `json:"transactionEmails"`
+	MinimumTransaction *int64 `json:"minimumTransaction"`
+	MaximumTransaction *int64 `json:"maximumTransaction"`
+	DailyUserCap       *int64 `json:"dailyUserCap"`
+	// theme, notifications and security
+	Theme                 string `json:"theme"`
+	EmailNotifications    *bool  `json:"emailNotifications"`
+	SMSNotifications      *bool  `json:"smsNotifications"`
+	PushNotifications     *bool  `json:"pushNotifications"`
+	EnforceTwoFactor      *bool  `json:"enforceTwoFactor"`
+	SessionTimeoutMinutes *int64 `json:"sessionTimeoutMinutes"`
+	PasswordExpiryDays    *int64 `json:"passwordExpiryDays"`
+	// granular notification toggles
+	SendTransactionSuccess *bool `json:"sendTransactionSuccess"`
+	SendTransactionDecline *bool `json:"sendTransactionDecline"`
+	SendTransactionPending *bool `json:"sendTransactionPending"`
+	SendTransactionRefund  *bool `json:"sendTransactionRefund"`
+	AccountLimitsNotify    *bool `json:"accountLimitsNotification"`
+}
+
+type PlatformSettingsResponse struct {
+	KYCEnforcement     bool   `json:"kycEnforcement"`
+	ManualRateOverride bool   `json:"manualRateOverride"`
+	DefaultCurrency    string `json:"defaultCurrency"`
+	TransactionEmails  bool   `json:"transactionEmails"`
+	MinimumTransaction int64  `json:"minimumTransaction"`
+	MaximumTransaction int64  `json:"maximumTransaction"`
+	DailyUserCap       int64  `json:"dailyUserCap"`
+	// theme, notifications and security
+	Theme                 string `json:"theme"`
+	EmailNotifications    bool   `json:"emailNotifications"`
+	SMSNotifications      bool   `json:"smsNotifications"`
+	PushNotifications     bool   `json:"pushNotifications"`
+	EnforceTwoFactor      bool   `json:"enforceTwoFactor"`
+	SessionTimeoutMinutes int64  `json:"sessionTimeoutMinutes"`
+	PasswordExpiryDays    int64  `json:"passwordExpiryDays"`
+	// granular notification toggles
+	SendTransactionSuccess bool `json:"sendTransactionSuccess"`
+	SendTransactionDecline bool `json:"sendTransactionDecline"`
+	SendTransactionPending bool `json:"sendTransactionPending"`
+	SendTransactionRefund  bool `json:"sendTransactionRefund"`
+	AccountLimitsNotify    bool `json:"accountLimitsNotification"`
+}
+
+// GetPlatformSettings returns platform-wide settings. For now return values from env/defaults.
+func GetPlatformSettings() (*PlatformSettingsResponse, error) {
+	var ps models.PlatformSetting
+	db := database.DB
+	if err := db.Order("id ASC").First(&ps).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// create default record
+			defaultRec := models.PlatformSetting{
+				KycEnforcement:               false,
+				ManualRateOverride:           false,
+				TransactionConfirmationEmail: true,
+				DefaultCurrencyDisplay:       models.DefaultCurrency("NGN"),
+				MinimumTransactionAmount:     100,
+				MaximumTransactionAmount:     1000000,
+				DailyTransactionLimit:        5000000,
+				ChartStyle:                   models.LineChart,
+				Theme:                        "light",
+				EmailNotifications:           true,
+				SMSNotifications:             false,
+				PushNotifications:            true,
+				EnforceTwoFactor:             false,
+				SessionTimeoutMinutes:        30,
+				PasswordExpiryDays:           90,
+				SendTransactionSuccessEmail:  true,
+				SendTransactionDeclineEmail:  true,
+				SendTransactionPendingEmail:  true,
+				SendTransactionRefundEmail:   true,
+				AccountLimitsNotification:    true,
+			}
+			if err := db.Create(&defaultRec).Error; err != nil {
+				return nil, fmt.Errorf("failed to create default platform settings: %w", err)
+			}
+			ps = defaultRec
+		} else {
+			return nil, fmt.Errorf("failed to load platform settings: %w", err)
+		}
+	}
+
+	resp := &PlatformSettingsResponse{
+		KYCEnforcement:        ps.KycEnforcement,
+		ManualRateOverride:    ps.ManualRateOverride,
+		DefaultCurrency:       string(ps.DefaultCurrencyDisplay),
+		TransactionEmails:     ps.TransactionConfirmationEmail || ps.SendTransactionSuccessEmail,
+		MinimumTransaction:    int64(ps.MinimumTransactionAmount),
+		MaximumTransaction:    int64(ps.MaximumTransactionAmount),
+		DailyUserCap:          int64(ps.DailyTransactionLimit),
+		Theme:                 ps.Theme,
+		EmailNotifications:    ps.EmailNotifications,
+		SMSNotifications:      ps.SMSNotifications,
+		PushNotifications:     ps.PushNotifications,
+		EnforceTwoFactor:      ps.EnforceTwoFactor,
+		SessionTimeoutMinutes: int64(ps.SessionTimeoutMinutes),
+		PasswordExpiryDays:    int64(ps.PasswordExpiryDays),
+		// granular notification toggles
+		SendTransactionSuccess: ps.SendTransactionSuccessEmail,
+		SendTransactionDecline: ps.SendTransactionDeclineEmail,
+		SendTransactionPending: ps.SendTransactionPendingEmail,
+		SendTransactionRefund:  ps.SendTransactionRefundEmail,
+		AccountLimitsNotify:    ps.AccountLimitsNotification,
+	}
+
+	return resp, nil
+}
+
+// UpdatePlatformSettings updates platform-wide settings. Currently just returns the updated payload.
+func UpdatePlatformSettings(req PlatformSettingsRequest, adminID uint) (*PlatformSettingsResponse, error) {
+	db := database.DB
+
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	var ps models.PlatformSetting
+	if err := tx.Order("id ASC").First(&ps).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// create
+			ps = models.PlatformSetting{}
+			if err := tx.Create(&ps).Error; err != nil {
+				tx.Rollback()
+				return nil, fmt.Errorf("failed to create platform settings: %w", err)
+			}
+		} else {
+			tx.Rollback()
+			return nil, fmt.Errorf("failed to load platform settings: %w", err)
+		}
+	}
+
+	updates := make(map[string]any)
+	if req.KYCEnforcement != nil {
+		updates["kyc_enforcement"] = *req.KYCEnforcement
+	}
+	if req.ManualRateOverride != nil {
+		updates["manual_rate_override"] = *req.ManualRateOverride
+	}
+	if req.DefaultCurrency != "" {
+		updates["default_currency_display"] = models.DefaultCurrency(req.DefaultCurrency)
+	}
+	if req.TransactionEmails != nil {
+		updates["transaction_confirmation_email"] = *req.TransactionEmails
+		updates["send_transaction_success_email"] = *req.TransactionEmails
+	}
+	if req.SendTransactionSuccess != nil {
+		updates["send_transaction_success_email"] = *req.SendTransactionSuccess
+	}
+	if req.SendTransactionDecline != nil {
+		updates["send_transaction_decline_email"] = *req.SendTransactionDecline
+	}
+	if req.SendTransactionPending != nil {
+		updates["send_transaction_pending_email"] = *req.SendTransactionPending
+	}
+	if req.SendTransactionRefund != nil {
+		updates["send_transaction_refund_email"] = *req.SendTransactionRefund
+	}
+	if req.AccountLimitsNotify != nil {
+		updates["account_limits_notification"] = *req.AccountLimitsNotify
+	}
+	if req.Theme != "" {
+		updates["theme"] = req.Theme
+	}
+	if req.EmailNotifications != nil {
+		updates["email_notifications"] = *req.EmailNotifications
+	}
+	if req.SMSNotifications != nil {
+		updates["sms_notifications"] = *req.SMSNotifications
+	}
+	if req.PushNotifications != nil {
+		updates["push_notifications"] = *req.PushNotifications
+	}
+	if req.EnforceTwoFactor != nil {
+		updates["enforce_two_factor"] = *req.EnforceTwoFactor
+	}
+	if req.SessionTimeoutMinutes != nil {
+		updates["session_timeout_minutes"] = float64(*req.SessionTimeoutMinutes)
+	}
+	if req.PasswordExpiryDays != nil {
+		updates["password_expiry_days"] = float64(*req.PasswordExpiryDays)
+	}
+	if req.MinimumTransaction != nil {
+		updates["minimum_transaction_amount"] = float64(*req.MinimumTransaction)
+	}
+	if req.MaximumTransaction != nil {
+		updates["maximum_transaction_amount"] = float64(*req.MaximumTransaction)
+	}
+	if req.DailyUserCap != nil {
+		updates["daily_transaction_limit"] = float64(*req.DailyUserCap)
+	}
+
+	if len(updates) > 0 {
+		if err := tx.Model(&ps).Updates(updates).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("failed to update platform settings: %w", err)
+		}
+	}
+
+	// create admin log
+	adminLog := models.AdminLog{
+		AdminID:  uint32(adminID),
+		Action:   "UPDATE_PLATFORM_SETTINGS",
+		Target:   "platform_settings",
+		TargetID: fmt.Sprintf("%d", ps.ID),
+		Details:  fmt.Sprintf("Platform settings updated by admin %d", adminID),
+	}
+	if err := tx.Create(&adminLog).Error; err != nil {
+		// don't fail the whole op for logging error, but rollback the transaction
+		tx.Rollback()
+		return nil, fmt.Errorf("failed to create admin log: %w", err)
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// refresh record
+	if err := db.Order("id ASC").First(&ps).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch updated platform settings: %w", err)
+	}
+
+	// build full response mirroring GetPlatformSettings
+	resp := &PlatformSettingsResponse{
+		KYCEnforcement:        ps.KycEnforcement,
+		ManualRateOverride:    ps.ManualRateOverride,
+		DefaultCurrency:       string(ps.DefaultCurrencyDisplay),
+		TransactionEmails:     ps.TransactionConfirmationEmail || ps.SendTransactionSuccessEmail,
+		MinimumTransaction:    int64(ps.MinimumTransactionAmount),
+		MaximumTransaction:    int64(ps.MaximumTransactionAmount),
+		DailyUserCap:          int64(ps.DailyTransactionLimit),
+		Theme:                 ps.Theme,
+		EmailNotifications:    ps.EmailNotifications,
+		SMSNotifications:      ps.SMSNotifications,
+		PushNotifications:     ps.PushNotifications,
+		EnforceTwoFactor:      ps.EnforceTwoFactor,
+		SessionTimeoutMinutes: int64(ps.SessionTimeoutMinutes),
+		PasswordExpiryDays:    int64(ps.PasswordExpiryDays),
+	}
+	// add granular flags if present on model
+	// if model has send flags, map them via existing fields
+	// extend response via type assertion (already defined fields present in struct)
+	// Note: PlatformSettingsResponse currently doesn't have fields for granular sends; if needed, add them to the struct and map here.
+
+	return resp, nil
 }
 
 // GenerateTwoFactorQR generates QR code for two-factor authentication setup
