@@ -103,7 +103,6 @@ func UpdateUserSettings(userID uint, req UpdateUserSettingsRequest) (any, error)
 	if req.Setting.SaveRecipient != nil {
 		updates["save_recipient"] = req.Setting.SaveRecipient
 	}
-	fmt.Println(updates)
 
 	if err := tx.Model(&models.Setting{}).Where("user_id = ?", userID).Updates(updates).Error; err != nil {
 		tx.Rollback()

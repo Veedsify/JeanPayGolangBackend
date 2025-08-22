@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -74,15 +73,15 @@ func NewJWTServiceFromEnv() (*JWTService, error) {
 		refreshSecretKey = secretKey + "_refresh"
 	}
 
-	accessTokenDuration := getEnvDurationOrDefault("JWT_ACCESS_TOKEN_DURATION", 60*time.Minute)
-	refreshTokenDuration := getEnvDurationOrDefault("JWT_REFRESH_TOKEN_DURATION", 7*24*time.Hour)
+	accessTokenDuration := GetEnvIntOrDefault("JWT_ACCESS_TOKEN_DURATION", 30)
+	refreshTokenDuration := GetEnvIntOrDefault("JWT_REFRESH_TOKEN_DURATION", 420)
 	issuer := getEnvOrDefault("JWT_ISSUER", "JeanPay")
 
 	config := &JWTConfig{
 		SecretKey:            []byte(secretKey),
 		RefreshSecretKey:     []byte(refreshSecretKey),
-		AccessTokenDuration:  accessTokenDuration,
-		RefreshTokenDuration: refreshTokenDuration,
+		AccessTokenDuration:  time.Minute * time.Duration(accessTokenDuration),
+		RefreshTokenDuration: time.Minute * time.Duration(refreshTokenDuration),
 		Issuer:               issuer,
 	}
 
@@ -218,88 +217,11 @@ func (j *JWTService) IsTokenExpired(tokenString string) bool {
 	return false
 }
 
-// GeneratePasswordResetToken generates a token for password reset
-func (j *JWTService) GeneratePasswordResetToken(id uint, userID uint32, email string) (string, error) {
-	tokenID, err := generateTokenID()
-	if err != nil {
-		return "", fmt.Errorf("failed to generate token ID: %w", err)
-	}
-
-	now := time.Now()
-	expiry := now.Add(1 * time.Hour) // Password reset tokens expire in 1 hour
-
-	claims := &JWTClaims{
-		ID:        id,
-		UserID:    userID,
-		Email:     email,
-		TokenID:   tokenID,
-		TokenType: "password_reset",
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expiry),
-			IssuedAt:  jwt.NewNumericDate(now),
-			NotBefore: jwt.NewNumericDate(now),
-			Issuer:    j.config.Issuer,
-			Subject:   fmt.Sprintf("%d", userID),
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(j.config.SecretKey)
-	if err != nil {
-		return "", fmt.Errorf("failed to sign password reset token: %w", err)
-	}
-
-	return tokenString, nil
-}
-
-// ValidatePasswordResetToken validates a password reset token
-func (j *JWTService) ValidatePasswordResetToken(tokenString string) (*JWTClaims, error) {
-	return j.validateToken(tokenString, j.config.SecretKey, "password_reset")
-}
-
-// GenerateEmailVerificationToken generates a token for email verification
-func (j *JWTService) GenerateEmailVerificationToken(ID uint, userID uint32, email string) (string, error) {
-	tokenID, err := generateTokenID()
-	if err != nil {
-		return "", fmt.Errorf("failed to generate token ID: %w", err)
-	}
-
-	now := time.Now()
-	expiry := now.Add(24 * time.Hour) // Email verification tokens expire in 24 hours
-
-	claims := &JWTClaims{
-		ID:        ID,
-		UserID:    userID,
-		Email:     email,
-		TokenID:   tokenID,
-		TokenType: "email_verification",
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expiry),
-			IssuedAt:  jwt.NewNumericDate(now),
-			NotBefore: jwt.NewNumericDate(now),
-			Issuer:    j.config.Issuer,
-			Subject:   fmt.Sprintf("%d", userID),
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(j.config.SecretKey)
-	if err != nil {
-		return "", fmt.Errorf("failed to sign email verification token: %w", err)
-	}
-
-	return tokenString, nil
-}
-
-// ValidateEmailVerificationToken validates an email verification token
-func (j *JWTService) ValidateEmailVerificationToken(tokenString string) (*JWTClaims, error) {
-	return j.validateToken(tokenString, j.config.SecretKey, "email_verification")
-}
-
 // validateToken is a helper method to validate tokens with specific secret and type
 func (j *JWTService) validateToken(tokenString string, secret []byte, expectedTokenType string) (*JWTClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		// Validate the signing method
+		if token.Method.Alg() != "HS256" {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return secret, nil
@@ -309,15 +231,18 @@ func (j *JWTService) validateToken(tokenString string, secret []byte, expectedTo
 		return nil, fmt.Errorf("failed to parse token: %w", err)
 	}
 
+	// Check if the token is valid
 	if !token.Valid {
-		return nil, errors.New("token is invalid")
+		return nil, errors.New("invalid token")
 	}
 
+	// Extract claims
 	claims, ok := token.Claims.(*JWTClaims)
 	if !ok {
-		return nil, errors.New("invalid token claims")
+		return nil, errors.New("invalid token claims type")
 	}
 
+	// Validate token type
 	if claims.TokenType != expectedTokenType {
 		return nil, fmt.Errorf("invalid token type: expected %s, got %s", expectedTokenType, claims.TokenType)
 	}
@@ -338,19 +263,6 @@ func generateTokenID() (string, error) {
 func getEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
-	}
-	return defaultValue
-}
-
-func getEnvDurationOrDefault(key string, defaultValue time.Duration) time.Duration {
-	if value := os.Getenv(key); value != "" {
-		if duration, err := time.ParseDuration(value); err == nil {
-			return duration
-		}
-		// Try parsing as seconds if duration parsing fails
-		if seconds, err := strconv.Atoi(value); err == nil {
-			return time.Duration(seconds) * time.Second
-		}
 	}
 	return defaultValue
 }

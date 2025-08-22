@@ -17,7 +17,6 @@ import (
 
 // GetWalletBalance retrieves the wallet balances for a user (both NGN and GHS)
 func GetWalletBalance(userID uint) ([]types.WalletBalance, error) {
-	fmt.Println(userID)
 	if userID == 0 {
 		return nil, errors.New("user ID is required")
 	}

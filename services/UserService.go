@@ -2,7 +2,6 @@ package services
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/Veedsify/JeanPayGoBackend/database"
 	"github.com/Veedsify/JeanPayGoBackend/database/models"
@@ -12,7 +11,6 @@ import (
 )
 
 func FetchUser(UserId uint) (types.UserResponse, error) {
-
 	if UserId == 0 {
 		return types.UserResponse{}, errors.New("user Id Is Required")
 	}
@@ -43,7 +41,6 @@ func FetchUser(UserId uint) (types.UserResponse, error) {
 }
 
 func GetUserById(id uint) (*libs.UserInfo, error) {
-	fmt.Print("Getting User By Id ", id)
 	var user models.User
 
 	err := database.DB.First(&user, id).Error

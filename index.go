@@ -5,6 +5,7 @@ import (
 
 	"github.com/Veedsify/JeanPayGoBackend/database"
 	"github.com/Veedsify/JeanPayGoBackend/initializers"
+	"github.com/Veedsify/JeanPayGoBackend/libs"
 	"github.com/Veedsify/JeanPayGoBackend/routes"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -17,9 +18,15 @@ func init() {
 }
 
 func main() {
+	allowedDomains := []string{
+		libs.GetEnvOrDefault("FRONTEND_URL", "http://localhost:3000"),
+		libs.GetEnvOrDefault("ADMIN_URL", "http://localhost:3001"),
+		"http://app.test:3000",
+		"http://app.test:3001",
+	}
 	router := gin.Default()
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"https://localhost:5173", "http://localhost:3000", "http://localhost:3001"},
+		AllowOrigins:     allowedDomains,
 		AllowMethods:     []string{"PUT", "PATCH", "POST", "DELETE", "OPTIONS", "GET"},
 		AllowHeaders:     []string{"Origin", "Cookie", "Authorization", "Content-Type"},
 		ExposeHeaders:    []string{"Content-Length"},

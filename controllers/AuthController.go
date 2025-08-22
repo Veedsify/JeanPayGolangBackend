@@ -54,88 +54,89 @@ func LoginUserEndpoint(c *gin.Context) {
 		"token": token,
 		"error": false,
 	})
-}
-
-func VerifyUserEndpoint(c *gin.Context) {
-	var email = c.Param("email")
-	var token = c.Param("token")
-
-	if email == "" || token == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "email and token are required", "error": true})
-		return
-	}
-
-	if err := services.VerifyUser(token, email); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"message": err.Error(), "error": true})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "User verified successfully", "error": false})
-}
-
-func PasswordResetEndpoint(c *gin.Context) {
-	email := c.PostForm("email")
-	if email == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "email is required", "error": true})
-		return
-	}
-
-	resetToken, err := services.PasswordReset(email)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error(), "error": true})
-		return
-	}
-
-	if resetToken == "" {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to generate reset token", "error": true})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Password reset email sent successfully",
-		"error":   false,
-	})
 
 }
 
-func ResetPasswordTokenVerifyEndpoint(c *gin.Context) {
-	token := c.Query("token")
-	if token == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "token is required", "error": true})
-		return
-	}
-
-	if err := services.VerifyPasswordResetToken(token); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"message": err.Error(), "error": true})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Token verified successfully",
-		"error":   false,
-	})
-
-}
-
-func ResetPasswordEndpoint(c *gin.Context) {
-	password := c.PostForm("password")
-	token := c.Query("token")
-	if password == "" || len(password) < 8 {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "password is required", "error": true})
-		return
-	}
-
-	if err := services.ResetPassword(token, password); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error(), "error": true})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Password reset successfully",
-		"error":   false,
-	})
-
-}
+//func VerifyUserEndpoint(c *gin.Context) {
+//	var email = c.Param("email")
+//	var token = c.Param("token")
+//
+//	if email == "" || token == "" {
+//		c.JSON(http.StatusBadRequest, gin.H{"message": "email and token are required", "error": true})
+//		return
+//	}
+//
+//	if err := services.VerifyUser(token, email); err != nil {
+//		c.JSON(http.StatusUnauthorized, gin.H{"message": err.Error(), "error": true})
+//		return
+//	}
+//
+//	c.JSON(http.StatusOK, gin.H{"message": "User verified successfully", "error": false})
+//}
+//
+//func PasswordResetEndpoint(c *gin.Context) {
+//	email := c.PostForm("email")
+//	if email == "" {
+//		c.JSON(http.StatusBadRequest, gin.H{"message": "email is required", "error": true})
+//		return
+//	}
+//
+//	resetToken, err := services.PasswordReset(email)
+//	if err != nil {
+//		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error(), "error": true})
+//		return
+//	}
+//
+//	if resetToken == "" {
+//		c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to generate reset token", "error": true})
+//		return
+//	}
+//
+//	c.JSON(http.StatusOK, gin.H{
+//		"message": "Password reset email sent successfully",
+//		"error":   false,
+//	})
+//
+//}
+//
+//func ResetPasswordTokenVerifyEndpoint(c *gin.Context) {
+//	token := c.Query("token")
+//	if token == "" {
+//		c.JSON(http.StatusBadRequest, gin.H{"message": "token is required", "error": true})
+//		return
+//	}
+//
+//	if err := services.VerifyPasswordResetToken(token); err != nil {
+//		c.JSON(http.StatusUnauthorized, gin.H{"message": err.Error(), "error": true})
+//		return
+//	}
+//
+//	c.JSON(http.StatusOK, gin.H{
+//		"message": "Token verified successfully",
+//		"error":   false,
+//	})
+//
+//}
+//
+//func ResetPasswordEndpoint(c *gin.Context) {
+//	password := c.PostForm("password")
+//	token := c.Query("token")
+//	if password == "" || len(password) < 8 {
+//		c.JSON(http.StatusBadRequest, gin.H{"message": "password is required", "error": true})
+//		return
+//	}
+//
+//	if err := services.ResetPassword(token, password); err != nil {
+//		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error(), "error": true})
+//		return
+//	}
+//
+//	c.JSON(http.StatusOK, gin.H{
+//		"message": "Password reset successfully",
+//		"error":   false,
+//	})
+//
+//}
 
 func VerifyOtpEndpoint(c *gin.Context) {
 	var otp struct {

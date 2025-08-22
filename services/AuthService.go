@@ -57,22 +57,22 @@ func RegisterUser(user types.RegisterUser) error {
 		return errors.New("sorry this account already exists")
 	}
 
-	jwtService, err := libs.NewJWTServiceFromEnv()
-	if err != nil {
-		log.Fatal(err)
-	}
+	// jwtService, err := libs.NewJWTServiceFromEnv()
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
-	token, err := jwtService.GenerateEmailVerificationToken(createUser.ID, createUser.UserID, createUser.Email)
+	// token, err := jwtService.GenerateEmailVerificationToken(createUser.ID, createUser.UserID, createUser.Email)
 
-	if err != nil {
-		return err
-	}
+	// if err != nil {
+	// 	return err
+	// }
 
-	emailJob := jobs.NewEmailJobClient()
-	err = emailJob.EnqueueWelcomeEmail(user.Email, user.FirstName, token)
-	if err != nil {
-		fmt.Printf("Error creating welcome email job: %v\n", err)
-	}
+	// emailJob := jobs.NewEmailJobClient()
+	// err = emailJob.EnqueueWelcomeEmail(user.Email, user.FirstName, token)
+	// if err != nil {
+	// 	fmt.Printf("Error creating welcome email job: %v\n", err)
+	// }
 	return nil
 }
 
@@ -146,106 +146,107 @@ func LoginUser(user types.LoginUser) (*libs.TokenPair, string, error) {
 	return token, "login", nil
 }
 
-func VerifyUser(token string, email string) error {
-	jwtService, err := libs.NewJWTServiceFromEnv()
-	if err != nil {
-		log.Fatal(err)
-	}
+//func VerifyUser(token string, email string) error {
+//	// jwtService, err := libs.NewJWTServiceFromEnv()
+//	// if err != nil {
+//	// 	log.Fatal(err)
+//	// }
+//
+//	// user, err := GetUserByEmail(email)
+//	// if err != nil {
+//	// 	return err
+//	// }
+//
+//	// if user == nil {
+//	// 	return errors.New("user not found")
+//	// }
+//
+//	// _, err = jwtService.ValidateEmailVerificationToken(token)
+//
+//	// if err != nil {
+//	// 	return err
+//	// }
+//
+//	// database.DB.Model(&models.User{}).Where("email = ?", email).Update("is_verified", true)
+//
+//	return nil
+//}
+//
+//func PasswordReset(email string) (string, error) {
+//	// user, err := GetUserByEmail(email)
+//	// if err != nil {
+//	// 	return "", err
+//	// }
+//
+//	// if user == nil {
+//	// 	return "", errors.New("user not found")
+//	// }
+//
+//	// jwtService, err := libs.NewJWTServiceFromEnv()
+//	// if err != nil {
+//	// 	log.Fatal(err)
+//	// }
+//	// resetToken, err := jwtService.GeneratePasswordResetToken(user.ID, user.UserID, user.Email)
+//	// if err != nil {
+//	// 	return "", err
+//	// }
+//
+//	// verifyUser, err := NewEmailServiceFromEnv()
+//	// if err != nil {
+//	// 	return "", err
+//	// }
+//
+//	// if err := verifyUser.SendPasswordResetEmail(email, resetToken); err != nil {
+//	// 	return "", err
+//	// }
+//
+//	// return resetToken, nil
+//	return "resetToken", nil
+//
+//}
+//
+//func VerifyPasswordResetToken(token string) error {
+//	// jwtService, err := libs.NewJWTServiceFromEnv()
+//	// if err != nil {
+//	// 	log.Fatal(err)
+//	// }
+//
+//	// _, err = jwtService.ValidatePasswordResetToken(token)
+//
+//	// if err != nil {
+//	// 	return err
+//	// }
+//
+//	return nil
+//
+//}
 
-	user, err := GetUserByEmail(email)
-	if err != nil {
-		return err
-	}
-
-	if user == nil {
-		return errors.New("user not found")
-	}
-
-	_, err = jwtService.ValidateEmailVerificationToken(token)
-
-	if err != nil {
-		return err
-	}
-
-	database.DB.Model(&models.User{}).Where("email = ?", email).Update("is_verified", true)
-
-	return nil
-}
-
-func PasswordReset(email string) (string, error) {
-	user, err := GetUserByEmail(email)
-	if err != nil {
-		return "", err
-	}
-
-	if user == nil {
-		return "", errors.New("user not found")
-	}
-
-	jwtService, err := libs.NewJWTServiceFromEnv()
-	if err != nil {
-		log.Fatal(err)
-	}
-	resetToken, err := jwtService.GeneratePasswordResetToken(user.ID, user.UserID, user.Email)
-	if err != nil {
-		return "", err
-	}
-
-	verifyUser, err := NewEmailServiceFromEnv()
-	if err != nil {
-		return "", err
-	}
-
-	if err := verifyUser.SendPasswordResetEmail(email, resetToken); err != nil {
-		return "", err
-	}
-
-	return resetToken, nil
-
-}
-
-func VerifyPasswordResetToken(token string) error {
-	jwtService, err := libs.NewJWTServiceFromEnv()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	_, err = jwtService.ValidatePasswordResetToken(token)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-
-}
-
-func ResetPassword(token string, password string) error {
-	if password == "" || len(password) < 8 {
-		return errors.New("password is required")
-	}
-
-	hashedPassword, err := libs.HashPassword(password)
-	if err != nil {
-		return err
-	}
-
-	jwtService, err := libs.NewJWTServiceFromEnv()
-	if err != nil {
-		return err
-	}
-
-	claims, err := jwtService.ValidatePasswordResetToken(token)
-	if err != nil {
-		return err
-	}
-
-	userId := claims.UserID
-	database.DB.Model(&models.User{}).Where("user_id = ?", userId).Update("password", hashedPassword)
-
-	return nil
-
-}
+//func ResetPassword(token string, password string) error {
+//	// if password == "" || len(password) < 8 {
+//	// 	return errors.New("password is required")
+//	// }
+//
+//	// hashedPassword, err := libs.HashPassword(password)
+//	// if err != nil {
+//	// 	return err
+//	// }
+//
+//	// jwtService, err := libs.NewJWTServiceFromEnv()
+//	// if err != nil {
+//	// 	return err
+//	// }
+//
+//	// claims, err := jwtService.ValidatePasswordResetToken(token)
+//	// if err != nil {
+//	// 	return err
+//	// }
+//
+//	// userId := claims.UserID
+//	// database.DB.Model(&models.User{}).Where("user_id = ?", userId).Update("password", hashedPassword)
+//
+//	return nil
+//
+//}
 
 func VerifyOtp(code string) (*libs.TokenPair, string, error) {
 	hashedKey := libs.SHA256(code)

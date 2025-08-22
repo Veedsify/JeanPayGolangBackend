@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/Veedsify/JeanPayGoBackend/database"
@@ -93,7 +92,6 @@ func UpdateUserSettingsEndpoint(c *gin.Context) {
 		})
 		return
 	}
-	fmt.Println("Claims:", claims)
 	userID := claims.(*libs.JWTClaims).ID
 	var req services.UpdateUserSettingsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
