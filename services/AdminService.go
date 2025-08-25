@@ -9,7 +9,9 @@ import (
 
 	"github.com/Veedsify/JeanPayGoBackend/database"
 	"github.com/Veedsify/JeanPayGoBackend/database/models"
+	"github.com/Veedsify/JeanPayGoBackend/jobs"
 	"github.com/Veedsify/JeanPayGoBackend/types"
+	"github.com/Veedsify/JeanPayGoBackend/utils"
 	"gorm.io/gorm"
 )
 
@@ -490,6 +492,7 @@ func ApproveAdminTransaction(transactionID string, adminID uint) (types.AdminAct
 	db := database.DB
 	var response types.AdminActionResponse
 	var transaction models.Transaction
+
 	// Start transaction
 	tx := db.Begin()
 	defer func() {
@@ -500,6 +503,7 @@ func ApproveAdminTransaction(transactionID string, adminID uint) (types.AdminAct
 
 	// Update transaction status
 	result := tx.Model(&models.Transaction{}).
+		Preload("TransactionDetails").
 		Where("transaction_id = ? AND status = ?", transactionID, models.TransactionPending).
 		Updates(map[string]any{
 			"status":     models.TransactionCompleted,
@@ -548,6 +552,25 @@ func ApproveAdminTransaction(transactionID string, adminID uint) (types.AdminAct
 
 	tx.Commit()
 
+	var user models.User
+	if err := db.First(&user, transaction.UserID).Error; err != nil {
+		return response, errors.New("user not found for this transaction")
+	}
+
+	title := "Transaction Successful"
+	message := fmt.Sprintf("Your transfer of %s to %s was successful.", utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency), transaction.TransactionDetails.RecipientName)
+	emailService := jobs.NewEmailJobClient()
+	notificationClient := jobs.NewNotificationJobClient()
+	defer notificationClient.Close()
+	defer emailService.Close()
+	notificationClient.EnqueueCreateNotification(
+		user.ID,
+		models.NotificationType("transfer"),
+		title,
+		message,
+	)
+
+	emailService.EnqueueTransactionApproved(user.Email, user.FirstName, transaction)
 	response = types.AdminActionResponse{
 		Success:   true,
 		Message:   "Transaction approved successfully",
@@ -603,6 +626,34 @@ func RejectAdminTransaction(transactionID string, reason string, adminID uint) (
 	}
 
 	tx.Commit()
+
+	var transaction models.Transaction
+	if err := db.Preload("TransactionDetails").Where("transaction_id = ?", transactionID).First(&transaction).Error; err != nil {
+		return response, err
+	}
+
+	var user models.User
+	if err := db.First(&user, transaction.UserID).Error; err != nil {
+		return response, errors.New("user not found for this transaction")
+	}
+
+	title := "Transaction Failed"
+	message := fmt.Sprintf("Your transfer of %s to %s was not successful.", utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency), transaction.TransactionDetails.RecipientName)
+	notificationClient := jobs.NewNotificationJobClient()
+	defer notificationClient.Close()
+	notificationClient.EnqueueCreateNotification(
+		user.ID,
+		models.NotificationType("transfer"),
+		title,
+		message,
+	)
+
+	emailClient := jobs.NewEmailJobClient()
+	defer emailClient.Close()
+	err := emailClient.EnqueueTransactionRejected(user.Email, user.FirstName, transaction, reason)
+	if err != nil {
+		return response, fmt.Errorf("transaction rejected but failed to send notification email: %w", err)
+	}
 
 	response = types.AdminActionResponse{
 		Success:   true,

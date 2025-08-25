@@ -13,7 +13,7 @@ import (
 // GetAllNotificationsEndpoint returns all notifications for user
 func GetAllNotificationsEndpoint(c *gin.Context) {
 	// Get user ID from JWT token
-	userIDInterface, exists := c.Get("user_id")
+	claims, exists := c.Get("user")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error":   true,
@@ -22,25 +22,30 @@ func GetAllNotificationsEndpoint(c *gin.Context) {
 		return
 	}
 
-	userID := strconv.Itoa(int(userIDInterface.(uint32)))
+	userID := claims.(*libs.JWTClaims).ID
 
 	var query types.NotificationQuery
-
-	// Parse query parameters
-	if page := c.Query("page"); page != "" {
-		if p, err := strconv.Atoi(page); err == nil {
-			query.Page = p
-		}
-	}
 
 	if limit := c.Query("limit"); limit != "" {
 		if l, err := strconv.Atoi(limit); err == nil {
 			query.Limit = l
 		}
 	}
-
 	query.ReadStatus = c.Query("read_status")
 	query.Type = c.Query("type")
+
+	cursor := c.Query("cursor")
+	if cursor != "" {
+		cursor, err := libs.ConvertStringToUint(cursor)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   true,
+				"message": "Invalid cursor format",
+			})
+			return
+		}
+		query.Cursor = &cursor
+	}
 
 	response, err := services.GetAllNotificationsService(userID, query)
 	if err != nil {
@@ -134,7 +139,7 @@ func MarkAllNotificationsReadEndpoint(c *gin.Context) {
 // GetUnreadNotificationCountEndpoint returns unread notification count
 func GetUnreadNotificationCountEndpoint(c *gin.Context) {
 	// Get user ID from JWT token
-	userIDInterface, exists := c.Get("user_id")
+	claims, exists := c.Get("user")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error":   true,
@@ -143,7 +148,7 @@ func GetUnreadNotificationCountEndpoint(c *gin.Context) {
 		return
 	}
 
-	userID := strconv.Itoa(int(userIDInterface.(uint32)))
+	userID := claims.(*libs.JWTClaims).ID
 
 	count, err := services.GetUnreadNotificationCountService(userID)
 	if err != nil {
@@ -203,10 +208,9 @@ func CreateNotificationEndpoint(c *gin.Context) {
 	})
 }
 
-// DeleteNotificationEndpoint deletes a notification
-func DeleteNotificationEndpoint(c *gin.Context) {
+func NotificationMarkReadBulkEndpoint(c *gin.Context) {
 	// Get user ID from JWT token
-	userIDInterface, exists := c.Get("user_id")
+	claims, exists := c.Get("user")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error":   true,
@@ -215,57 +219,20 @@ func DeleteNotificationEndpoint(c *gin.Context) {
 		return
 	}
 
-	userID := strconv.Itoa(int(userIDInterface.(uint32)))
+	userID := claims.(*libs.JWTClaims).ID
 
-	notificationID := c.Param("id")
-	if notificationID == "" {
+	var request struct {
+		ID []uint `json:"id"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   true,
-			"message": "Notification ID is required",
+			"message": "Invalid request data",
 		})
 		return
 	}
 
-	// Check if user is admin
-	isAdmin, _ := c.Get("is_admin")
-	isAdminBool := isAdmin != nil && isAdmin.(bool)
-
-	err := services.DeleteNotificationService(notificationID, userID, isAdminBool)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   true,
-			"message": err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"error":   false,
-		"message": "Notification deleted successfully",
-	})
-}
-
-// GetRecentNotificationsEndpoint returns recent notifications for user
-func GetRecentNotificationsEndpoint(c *gin.Context) {
-	claimsAny, exists := c.Get("user")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":   true,
-			"message": "User not authenticated",
-		})
-		return
-	}
-
-	claims := claimsAny.(*libs.JWTClaims)
-
-	// Parse limit parameter
-	limitStr := c.DefaultQuery("limit", "10")
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		limit = 10
-	}
-
-	notifications, err := services.GetRecentNotifications(claims.UserID, limit)
+	markedCount, err := services.NotificationMarkReadBulkService(userID, request.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   true,
@@ -276,8 +243,52 @@ func GetRecentNotificationsEndpoint(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"error":   false,
-		"message": "Recent notifications retrieved successfully",
-		"data":    notifications,
+		"message": "Notifications marked as read successfully",
+		"data": gin.H{
+			"marked_count": markedCount,
+		},
+	})
+}
+
+func DeleteNotificationEndpoint(c *gin.Context) {
+	// Get user ID from JWT token
+	claims, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   true,
+			"message": "User authentication required",
+		})
+		return
+	}
+
+	userID := claims.(*libs.JWTClaims).ID
+
+	var request struct {
+		ID []uint `json:"id"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   true,
+			"message": "Invalid request data",
+		})
+		return
+	}
+
+	deletedCount, err := services.NotificationDeleteBulkService(userID, request.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   true,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"error":   false,
+		"message": "Notifications deleted successfully",
+		"data": gin.H{
+			"deleted_count": deletedCount,
+		},
 	})
 }
 

@@ -8,8 +8,10 @@ import (
 	"slices"
 	"time"
 
+	"github.com/Veedsify/JeanPayGoBackend/database/models"
 	"github.com/Veedsify/JeanPayGoBackend/interfaces"
 	"github.com/Veedsify/JeanPayGoBackend/libs"
+	"github.com/Veedsify/JeanPayGoBackend/utils"
 	"github.com/hibiken/asynq"
 )
 
@@ -17,12 +19,13 @@ var redisAddr = libs.GetEnvOrDefault("REDIS_ADDR", "127.0.0.1:6379")
 
 // Email job types
 const (
-	TypeEmailDelivery           = "email:delivery"
-	TypeWelcomeEmail            = "email:welcome"
-	TypePasswordResetEmail      = "email:password_reset"
-	TypeTransactionNotification = "email:transaction_notification"
-	TypeEmailVerification       = "email:verification"
-	TypeTwoFactorEmail          = "email:two_factor_authentication"
+	TypeEmailDelivery       = "email:delivery"
+	TypeWelcomeEmail        = "email:welcome"
+	TypePasswordResetEmail  = "email:password_reset"
+	TypeEmailVerification   = "email:verification"
+	TypeTwoFactorEmail      = "email:two_factor_authentication"
+	TypeTransactionApproved = "email:transaction_approved"
+	TypeTransactionRejected = "email:transaction_rejected"
 )
 
 // Base email job payload
@@ -47,17 +50,29 @@ type PasswordResetEmailPayload struct {
 	ResetToken string `json:"reset_token"`
 }
 
-type TransactionNotificationPayload struct {
-	EmailJobPayload
-	TransactionType string `json:"transaction_type"`
-	Amount          string `json:"amount"`
-	TransactionID   string `json:"transaction_id"`
-}
-
 type EmailVerificationPayload struct {
 	EmailJobPayload
 	UserName          string `json:"user_name"`
 	VerificationToken string `json:"verification_token"`
+}
+
+type TransactionApprovedPayload struct {
+	EmailJobPayload
+	UserName        string             `json:"user_name"`
+	TransactionType string             `json:"transaction_type"`
+	Amount          string             `json:"amount"`
+	TransactionID   string             `json:"transaction_id"`
+	Transaction     models.Transaction `json:"transaction"`
+}
+
+type TransactionRejectedPayload struct {
+	EmailJobPayload
+	UserName        string             `json:"user_name"`
+	TransactionType string             `json:"transaction_type"`
+	Amount          string             `json:"amount"`
+	TransactionID   string             `json:"transaction_id"`
+	Reason          string             `json:"reason"`
+	Transaction     models.Transaction `json:"transaction"`
 }
 
 // EmailJobClient handles email job creation and queuing
@@ -150,45 +165,6 @@ func (ejc *EmailJobClient) EnqueuePasswordResetEmail(email, resetToken string) e
 	return nil
 }
 
-// EnqueueTransactionNotification queues a transaction notification email job
-func (ejc *EmailJobClient) EnqueueTransactionNotification(email, transactionType, amount, transactionID string) error {
-	payload := TransactionNotificationPayload{
-		EmailJobPayload: EmailJobPayload{
-			To:         []string{email},
-			Subject:    fmt.Sprintf("Transaction %s - JeanPay", transactionType),
-			TemplateID: "transaction_notification",
-			Data: map[string]any{
-				"transaction_type": transactionType,
-				"amount":           amount,
-				"transaction_id":   transactionID,
-			},
-			Priority: "medium",
-		},
-		TransactionType: transactionType,
-		Amount:          amount,
-		TransactionID:   transactionID,
-	}
-
-	task, err := createEmailTask(TypeTransactionNotification, payload)
-	if err != nil {
-		return fmt.Errorf("failed to create transaction notification email task: %w", err)
-	}
-
-	opts := []asynq.Option{
-		asynq.Queue("default"),
-		asynq.MaxRetry(2),
-		asynq.Timeout(3 * time.Minute),
-	}
-
-	info, err := ejc.client.Enqueue(task, opts...)
-	if err != nil {
-		return fmt.Errorf("failed to enqueue transaction notification email task: %w", err)
-	}
-
-	log.Printf("Enqueued transaction notification email task: id=%s queue=%s", info.ID, info.Queue)
-	return nil
-}
-
 // EnqueueEmailVerification queues an email verification job
 func (ejc *EmailJobClient) EnqueueEmailVerification(email, userName, verificationToken string) error {
 	payload := EmailVerificationPayload{
@@ -255,6 +231,110 @@ func (ejc *EmailJobClient) EnqueueTwoFactorEmail(email, userName, verificationLi
 	}
 	log.Printf("Enqueued two-factor email task: id=%s queue=%s", info.ID, info.Queue)
 	return nil
+}
+
+// EnqueueTransactionApproved queues an approved transaction email job
+func (ejc *EmailJobClient) EnqueueTransactionApproved(email string, userName string, transaction models.Transaction) error {
+	payload := TransactionApprovedPayload{
+		EmailJobPayload: EmailJobPayload{
+			To:         []string{email},
+			Subject:    fmt.Sprintf("%s Approved - JeanPay", getTransactionTypeDisplay(string(transaction.TransactionType))),
+			TemplateID: "transaction_approved",
+			Data: map[string]any{
+				"user_name":        userName,
+				"transaction_id":   transaction.TransactionID,
+				"transaction_type": transaction.TransactionType,
+				"amount":           utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency),
+				"email":            email,
+			},
+			Priority: "high",
+		},
+		UserName:        userName,
+		TransactionType: string(transaction.TransactionType),
+		Amount:          utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency),
+		TransactionID:   transaction.TransactionID,
+		Transaction:     transaction,
+	}
+
+	task, err := createEmailTask(TypeTransactionApproved, payload)
+	if err != nil {
+		return fmt.Errorf("failed to create transaction approved email task: %w", err)
+	}
+
+	opts := []asynq.Option{
+		asynq.Queue("high"),
+		asynq.MaxRetry(3),
+		asynq.Timeout(5 * time.Minute),
+	}
+
+	info, err := ejc.client.Enqueue(task, opts...)
+	if err != nil {
+		return fmt.Errorf("failed to enqueue transaction approved email task: %w", err)
+	}
+
+	log.Printf("Enqueued transaction approved email task: id=%s queue=%s", info.ID, info.Queue)
+	return nil
+}
+
+// EnqueueTransactionRejected queues a rejected transaction email job
+func (ejc *EmailJobClient) EnqueueTransactionRejected(email string, userName string, transaction models.Transaction, reason string) error {
+	payload := TransactionRejectedPayload{
+		EmailJobPayload: EmailJobPayload{
+			To:         []string{email},
+			Subject:    fmt.Sprintf("%s Rejected - JeanPay", getTransactionTypeDisplay(string(transaction.TransactionType))),
+			TemplateID: "transaction_rejected",
+			Data: map[string]any{
+				"user_name":        userName,
+				"transaction_id":   transaction.TransactionID,
+				"transaction_type": transaction.TransactionType,
+				"amount":           utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency),
+				"reason":           reason,
+				"email":            email,
+			},
+			Priority: "high",
+		},
+		UserName:        userName,
+		TransactionType: string(transaction.TransactionType),
+		Amount:          utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency),
+		TransactionID:   transaction.TransactionID,
+		Reason:          reason,
+		Transaction:     transaction,
+	}
+
+	task, err := createEmailTask(TypeTransactionRejected, payload)
+	if err != nil {
+		return fmt.Errorf("failed to create transaction rejected email task: %w", err)
+	}
+
+	opts := []asynq.Option{
+		asynq.Queue("high"),
+		asynq.MaxRetry(3),
+		asynq.Timeout(5 * time.Minute),
+	}
+
+	info, err := ejc.client.Enqueue(task, opts...)
+	if err != nil {
+		return fmt.Errorf("failed to enqueue transaction rejected email task: %w", err)
+	}
+
+	log.Printf("Enqueued transaction rejected email task: id=%s queue=%s", info.ID, info.Queue)
+	return nil
+}
+
+// Helper function to get user-friendly transaction type display names
+func getTransactionTypeDisplay(transactionType string) string {
+	switch transactionType {
+	case "deposit":
+		return "Deposit"
+	case "withdrawal":
+		return "Withdrawal"
+	case "transfer":
+		return "Transfer"
+	case "conversion":
+		return "Currency Conversion"
+	default:
+		return "Transaction"
+	}
 }
 
 // EnqueueScheduledEmail queues an email to be sent at a specific time
@@ -369,36 +449,6 @@ func HandlePasswordResetEmailTask(ctx context.Context, t *asynq.Task) error {
 	return nil
 }
 
-// HandleTransactionNotificationTask handles transaction notification email delivery
-func HandleTransactionNotificationTask(ctx context.Context, t *asynq.Task) error {
-	var payload TransactionNotificationPayload
-	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
-		return fmt.Errorf("failed to unmarshal transaction notification payload: %v: %w", err, asynq.SkipRetry)
-	}
-
-	if err := validateEmailPayload(payload.EmailJobPayload); err != nil {
-		return fmt.Errorf("invalid transaction notification payload: %v: %w", err, asynq.SkipRetry)
-	}
-
-	emailSender := interfaces.GetGlobalEmailSender()
-	if emailSender == nil {
-		return fmt.Errorf("email sender not initialized")
-	}
-
-	err := emailSender.SendTransactionNotification(
-		payload.To[0],
-		payload.TransactionType,
-		payload.Amount,
-		payload.TransactionID,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to send transaction notification email: %w", err)
-	}
-
-	log.Printf("Transaction notification email sent successfully to: %s", payload.To[0])
-	return nil
-}
-
 // HandleEmailVerificationTask handles email verification delivery
 func HandleEmailVerificationTask(ctx context.Context, t *asynq.Task) error {
 	var payload EmailVerificationPayload
@@ -425,6 +475,65 @@ func HandleEmailVerificationTask(ctx context.Context, t *asynq.Task) error {
 	}
 
 	log.Printf("Email verification sent successfully to: %s", payload.To[0])
+	return nil
+}
+
+// HandleTransactionApprovedTask handles transaction approved email delivery
+func HandleTransactionApprovedTask(ctx context.Context, t *asynq.Task) error {
+	var payload TransactionApprovedPayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		return fmt.Errorf("failed to unmarshal transaction approved payload: %v: %w", err, asynq.SkipRetry)
+	}
+
+	if err := validateEmailPayload(payload.EmailJobPayload); err != nil {
+		return fmt.Errorf("invalid transaction approved payload: %v: %w", err, asynq.SkipRetry)
+	}
+
+	emailSender := interfaces.GetGlobalEmailSender()
+	if emailSender == nil {
+		return fmt.Errorf("email sender not initialized")
+	}
+
+	err := emailSender.SendTransactionApprovedEmail(
+		payload.To[0],
+		payload.UserName,
+		payload.Transaction,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to send transaction approved email: %w", err)
+	}
+
+	log.Printf("Transaction approved email sent successfully to: %s", payload.To[0])
+	return nil
+}
+
+// HandleTransactionRejectedTask handles transaction rejected email delivery
+func HandleTransactionRejectedTask(ctx context.Context, t *asynq.Task) error {
+	var payload TransactionRejectedPayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		return fmt.Errorf("failed to unmarshal transaction rejected payload: %v: %w", err, asynq.SkipRetry)
+	}
+
+	if err := validateEmailPayload(payload.EmailJobPayload); err != nil {
+		return fmt.Errorf("invalid transaction rejected payload: %v: %w", err, asynq.SkipRetry)
+	}
+
+	emailSender := interfaces.GetGlobalEmailSender()
+	if emailSender == nil {
+		return fmt.Errorf("email sender not initialized")
+	}
+
+	err := emailSender.SendTransactionRejectedEmail(
+		payload.To[0],
+		payload.UserName,
+		payload.Transaction,
+		payload.Reason,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to send transaction rejected email: %w", err)
+	}
+
+	log.Printf("Transaction rejected email sent successfully to: %s", payload.To[0])
 	return nil
 }
 

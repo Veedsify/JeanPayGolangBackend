@@ -11,12 +11,13 @@ const (
 	AuthBase                = "/auth"
 	AuthLogin               = "/login"
 	AuthVerify              = "/verify"
-	AuthPasswordReset       = "/password-reset"
+	AuthPasswordResetEmail  = "/password-reset-email"
 	AuthResetPassWordVerify = "/reset-password-verify"
 	AuthSignup              = "/register"
 	AuthLogout              = "/logout"
 	AuthResetPassword       = "/reset-password"
 	AuthVerifyOtp           = "/verify-otp"
+	AuthRefreshToken        = "/refresh-token"
 
 	// User paths
 	UserBase     = "/user"
@@ -75,6 +76,8 @@ const (
 	NotificationsAll         = "/all"
 	NotificationsMarkRead    = "/mark-read/:id"
 	NotificationsMarkAllRead = "/mark-all-read"
+	NotificationMarkReadBulk = "/mark-read-bulk"
+	NotificationDeleteBulk   = "/delete-bulk"
 
 	// Settings paths
 	SettingsBase             = "/settings"

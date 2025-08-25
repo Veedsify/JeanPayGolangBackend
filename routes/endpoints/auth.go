@@ -12,9 +12,11 @@ func AuthRoutes(router *gin.RouterGroup) {
 		auth.POST(constants.AuthSignup, controllers.RegisterUserEndpoint)
 		auth.POST(constants.AuthLogin, controllers.LoginUserEndpoint)
 		// auth.POST(constants.AuthVerify, controllers.VerifyUserEndpoint)
-		// auth.POST(constants.AuthPasswordReset, controllers.PasswordResetEndpoint)
-		// auth.GET(constants.AuthResetPassWordVerify, controllers.ResetPasswordTokenVerifyEndpoint)
-		// auth.POST(constants.AuthResetPassword, controllers.ResetPasswordEndpoint)
+		auth.POST(constants.AuthPasswordResetEmail, controllers.CreatePasswordResetLinkEndpoint)
+		auth.GET(constants.AuthResetPassWordVerify, controllers.ResetPasswordTokenVerifyEndpoint)
+		auth.POST(constants.AuthResetPassword, controllers.ResetPasswordEndpoint)
 		auth.POST(constants.AuthVerifyOtp, controllers.VerifyOtpEndpoint)
+		auth.POST(constants.AuthLogout, controllers.LogoutUserEndpoint)
+		auth.POST(constants.AuthRefreshToken, controllers.RefreshTokenEndpoint)
 	}
 }

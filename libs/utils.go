@@ -4,15 +4,19 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
+	"net/http"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/dustin/go-humanize"
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
@@ -102,13 +106,14 @@ func SanitizeString(input string) string {
 
 // FormatCurrency formats a float64 as currency string
 func FormatCurrency(amount float64, currency string) string {
+	formattedAmount := humanize.CommafWithDigits(amount, 2)
 	switch currency {
 	case "NGN":
-		return fmt.Sprintf("₦%.2f", amount)
+		return fmt.Sprintf("₦ %s", formattedAmount)
 	case "GHS":
-		return fmt.Sprintf("GH₵%.2f", amount)
+		return fmt.Sprintf("GH₵ %s", formattedAmount)
 	default:
-		return fmt.Sprintf("%.2f %s", amount, currency)
+		return fmt.Sprintf(" %s %s", formattedAmount, currency)
 	}
 }
 
@@ -461,4 +466,23 @@ func SHA256(value string) string {
 	hasher := sha256.New()
 	hasher.Write([]byte(value))
 	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func SetCookie(c *gin.Context, name string, value string, maxAge int64, path string) error {
+	if name == "" || value == "" {
+		return errors.New("cookie name and value cannot be empty")
+	}
+
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     path,
+		Expires:  time.Now().UTC().Add(time.Duration(maxAge) * time.Minute), // correct future time
+		MaxAge:   3600,
+		HttpOnly: false,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+	})
+
+	return nil
 }

@@ -86,7 +86,8 @@ func NewQueueServer(config *QueueConfig) *QueueServer {
 		GroupMaxDelay:    config.GroupMaxDelay,
 		GroupMaxSize:     config.GroupMaxSize,
 		ErrorHandler: asynq.ErrorHandlerFunc(func(ctx context.Context, task *asynq.Task, err error) {
-			log.Printf("Task failed: type=%s id=%s error=%v", task.Type(), task.ResultWriter().TaskID(), err)
+			taskID := getSafeTaskID(task)
+			log.Printf("Task failed: type=%s id=%s error=%v", task.Type(), taskID, err)
 
 			// Add custom error handling logic here
 			// For example, send to monitoring service, log to database, etc.
@@ -112,9 +113,10 @@ func registerHandlers(mux *asynq.ServeMux) {
 	mux.HandleFunc(jobs.TypeEmailDelivery, jobs.HandleGenericEmailTask)
 	mux.HandleFunc(jobs.TypeWelcomeEmail, jobs.HandleWelcomeEmailTask)
 	mux.HandleFunc(jobs.TypePasswordResetEmail, jobs.HandlePasswordResetEmailTask)
-	mux.HandleFunc(jobs.TypeTransactionNotification, jobs.HandleTransactionNotificationTask)
 	mux.HandleFunc(jobs.TypeEmailVerification, jobs.HandleEmailVerificationTask)
 	mux.HandleFunc(jobs.TypeTwoFactorEmail, jobs.HandleTwoFactorEmailTask)
+	mux.HandleFunc(jobs.TypeTransactionApproved, jobs.HandleTransactionApprovedTask)
+	mux.HandleFunc(jobs.TypeTransactionRejected, jobs.HandleTransactionRejectedTask)
 	// Activity Log
 	mux.HandleFunc(jobs.TypeActivityLog, jobs.HandleActivityJobTask)
 	// Notification Log
@@ -123,6 +125,7 @@ func registerHandlers(mux *asynq.ServeMux) {
 	mux.HandleFunc(jobs.TypeNotificationUpdate, jobs.HandleUpdateNotificationTask)
 	mux.HandleFunc(jobs.TypeNotificationMarkAllRead, jobs.HandleMarkAllNotificationsReadTask)
 	mux.HandleFunc(jobs.TypeNotificationMarkRead, jobs.HandleMarkNotificationReadTask)
+
 	// Add middleware for logging
 	mux.Use(loggingMiddleware)
 	mux.Use(metricsMiddleware)
@@ -194,18 +197,19 @@ func InitializeQueueServer() {
 func loggingMiddleware(h asynq.Handler) asynq.Handler {
 	return asynq.HandlerFunc(func(ctx context.Context, t *asynq.Task) error {
 		start := time.Now()
+		taskID := getSafeTaskID(t)
 
-		log.Printf("Processing task: type=%s id=%s", t.Type(), t.ResultWriter().TaskID())
+		log.Printf("Processing task: type=%s id=%s", t.Type(), taskID)
 
 		err := h.ProcessTask(ctx, t)
 
 		duration := time.Since(start)
 		if err != nil {
 			log.Printf("Task failed: type=%s id=%s duration=%v error=%v",
-				t.Type(), t.ResultWriter().TaskID(), duration, err)
+				t.Type(), taskID, duration, err)
 		} else {
 			log.Printf("Task completed: type=%s id=%s duration=%v",
-				t.Type(), t.ResultWriter().TaskID(), duration)
+				t.Type(), taskID, duration)
 		}
 
 		return err
@@ -241,6 +245,20 @@ func startHealthCheckServer(addr string) {
 	// This is a placeholder for a health check HTTP server
 	// You can implement a proper HTTP server with health check endpoints
 	log.Printf("Health check server would start on %s (placeholder)", addr)
+}
+
+// getSafeTaskID safely extracts task ID, handling potential nil ResultWriter
+func getSafeTaskID(task *asynq.Task) string {
+	if task == nil {
+		return "unknown"
+	}
+
+	resultWriter := task.ResultWriter()
+	if resultWriter == nil {
+		return "unknown"
+	}
+
+	return resultWriter.TaskID()
 }
 
 // getLogLevel returns the log level from environment variable

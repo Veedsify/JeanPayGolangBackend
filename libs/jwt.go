@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/Veedsify/JeanPayGoBackend/utils"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -73,14 +74,14 @@ func NewJWTServiceFromEnv() (*JWTService, error) {
 		refreshSecretKey = secretKey + "_refresh"
 	}
 
-	accessTokenDuration := GetEnvIntOrDefault("JWT_ACCESS_TOKEN_DURATION", 30)
-	refreshTokenDuration := GetEnvIntOrDefault("JWT_REFRESH_TOKEN_DURATION", 420)
+	accessTokenDuration := GetEnvIntOrDefault("JWT_ACCESS_TOKEN_DURATION", 10)
+	refreshTokenDuration := GetEnvIntOrDefault("JWT_REFRESH_TOKEN_DURATION", 60)
 	issuer := getEnvOrDefault("JWT_ISSUER", "JeanPay")
 
 	config := &JWTConfig{
 		SecretKey:            []byte(secretKey),
 		RefreshSecretKey:     []byte(refreshSecretKey),
-		AccessTokenDuration:  time.Minute * time.Duration(accessTokenDuration),
+		AccessTokenDuration:  time.Second * time.Duration(accessTokenDuration),
 		RefreshTokenDuration: time.Minute * time.Duration(refreshTokenDuration),
 		Issuer:               issuer,
 	}
@@ -144,6 +145,11 @@ func (j *JWTService) GenerateTokenPair(userInfo *UserInfo) (*TokenPair, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign refresh token: %w", err)
 	}
+
+	// Save refresh token in Redis with expiration (optional, implement as needed)
+	key := fmt.Sprintf("refresh_token:%s", refreshTokenString)
+	redisClient := utils.NewRedisClient()
+	utils.SetRedisKey(redisClient, key, userInfo.ID, j.config.RefreshTokenDuration)
 
 	return &TokenPair{
 		AccessToken:  accessTokenString,

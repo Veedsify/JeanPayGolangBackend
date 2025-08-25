@@ -22,6 +22,7 @@ type NotificationResponse struct {
 	ID        uint                    `json:"id"`
 	UserID    uint                    `json:"user_id"`
 	Type      models.NotificationType `json:"type"`
+	Title     string                  `json:"title"`
 	Message   string                  `json:"message"`
 	Read      bool                    `json:"read"`
 	CreatedAt time.Time               `json:"created_at"`
@@ -38,10 +39,7 @@ type GetNotificationsRequest struct {
 
 type GetNotificationsResponse struct {
 	Notifications []NotificationResponse `json:"notifications"`
-	Total         int64                  `json:"total"`
-	Page          int                    `json:"page"`
-	Limit         int                    `json:"limit"`
-	TotalPages    int                    `json:"total_pages"`
+	NextCursor    *uint                  `json:"nextCursor"`
 	UnreadCount   int64                  `json:"unread_count"`
 }
 
@@ -59,8 +57,10 @@ type NotificationStatsResponse struct {
 
 func ToNotificationResponse(notification *models.Notification) NotificationResponse {
 	return NotificationResponse{
+		ID:        notification.ID,
 		UserID:    notification.UserID,
 		Type:      notification.Type,
+		Title:     notification.Title,
 		Message:   notification.Message,
 		Read:      notification.Read,
 		CreatedAt: notification.CreatedAt,
@@ -72,6 +72,7 @@ type NotificationQuery struct {
 	Page       int    `form:"page"`
 	Limit      int    `form:"limit"`
 	ReadStatus string `form:"read_status"`
+	Cursor     *uint  `form:"cursor"`
 	Type       string `form:"type"`
 }
 

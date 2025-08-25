@@ -57,22 +57,11 @@ func RegisterUser(user types.RegisterUser) error {
 		return errors.New("sorry this account already exists")
 	}
 
-	// jwtService, err := libs.NewJWTServiceFromEnv()
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// token, err := jwtService.GenerateEmailVerificationToken(createUser.ID, createUser.UserID, createUser.Email)
-
-	// if err != nil {
-	// 	return err
-	// }
-
-	// emailJob := jobs.NewEmailJobClient()
-	// err = emailJob.EnqueueWelcomeEmail(user.Email, user.FirstName, token)
-	// if err != nil {
-	// 	fmt.Printf("Error creating welcome email job: %v\n", err)
-	// }
+	emailJob := jobs.NewEmailJobClient()
+	err = emailJob.EnqueueWelcomeEmail(user.Email, user.FirstName, "")
+	if err != nil {
+		fmt.Printf("Error creating welcome email job: %v\n", err)
+	}
 	return nil
 }
 
@@ -146,107 +135,107 @@ func LoginUser(user types.LoginUser) (*libs.TokenPair, string, error) {
 	return token, "login", nil
 }
 
-//func VerifyUser(token string, email string) error {
-//	// jwtService, err := libs.NewJWTServiceFromEnv()
-//	// if err != nil {
-//	// 	log.Fatal(err)
-//	// }
+//	func VerifyUser(token string, email string) error {
+//		// jwtService, err := libs.NewJWTServiceFromEnv()
+//		// if err != nil {
+//		// 	log.Fatal(err)
+//		// }
 //
-//	// user, err := GetUserByEmail(email)
-//	// if err != nil {
-//	// 	return err
-//	// }
+//		// user, err := GetUserByEmail(email)
+//		// if err != nil {
+//		// 	return err
+//		// }
 //
-//	// if user == nil {
-//	// 	return errors.New("user not found")
-//	// }
+//		// if user == nil {
+//		// 	return errors.New("user not found")
+//		// }
 //
-//	// _, err = jwtService.ValidateEmailVerificationToken(token)
+//		// _, err = jwtService.ValidateEmailVerificationToken(token)
 //
-//	// if err != nil {
-//	// 	return err
-//	// }
+//		// if err != nil {
+//		// 	return err
+//		// }
 //
-//	// database.DB.Model(&models.User{}).Where("email = ?", email).Update("is_verified", true)
+//		// database.DB.Model(&models.User{}).Where("email = ?", email).Update("is_verified", true)
 //
-//	return nil
-//}
-//
-//func PasswordReset(email string) (string, error) {
-//	// user, err := GetUserByEmail(email)
-//	// if err != nil {
-//	// 	return "", err
-//	// }
-//
-//	// if user == nil {
-//	// 	return "", errors.New("user not found")
-//	// }
-//
-//	// jwtService, err := libs.NewJWTServiceFromEnv()
-//	// if err != nil {
-//	// 	log.Fatal(err)
-//	// }
-//	// resetToken, err := jwtService.GeneratePasswordResetToken(user.ID, user.UserID, user.Email)
-//	// if err != nil {
-//	// 	return "", err
-//	// }
-//
-//	// verifyUser, err := NewEmailServiceFromEnv()
-//	// if err != nil {
-//	// 	return "", err
-//	// }
-//
-//	// if err := verifyUser.SendPasswordResetEmail(email, resetToken); err != nil {
-//	// 	return "", err
-//	// }
-//
-//	// return resetToken, nil
-//	return "resetToken", nil
-//
-//}
-//
-//func VerifyPasswordResetToken(token string) error {
-//	// jwtService, err := libs.NewJWTServiceFromEnv()
-//	// if err != nil {
-//	// 	log.Fatal(err)
-//	// }
-//
-//	// _, err = jwtService.ValidatePasswordResetToken(token)
-//
-//	// if err != nil {
-//	// 	return err
-//	// }
-//
-//	return nil
-//
-//}
+//		return nil
+//	}
+func CreatePasswordReset(email string) (string, error) {
+	user, err := GetUserByEmail(email)
+	if err != nil {
+		return "", errors.New("if your email exists in our system, you will receive a password reset link shortly")
+	}
 
-//func ResetPassword(token string, password string) error {
-//	// if password == "" || len(password) < 8 {
-//	// 	return errors.New("password is required")
-//	// }
-//
-//	// hashedPassword, err := libs.HashPassword(password)
-//	// if err != nil {
-//	// 	return err
-//	// }
-//
-//	// jwtService, err := libs.NewJWTServiceFromEnv()
-//	// if err != nil {
-//	// 	return err
-//	// }
-//
-//	// claims, err := jwtService.ValidatePasswordResetToken(token)
-//	// if err != nil {
-//	// 	return err
-//	// }
-//
-//	// userId := claims.UserID
-//	// database.DB.Model(&models.User{}).Where("user_id = ?", userId).Update("password", hashedPassword)
-//
-//	return nil
-//
-//}
+	if user == nil {
+		return "", errors.New("user not found")
+	}
+
+	resetString := libs.GenerateRandomString(32)
+
+	emailClient := jobs.NewEmailJobClient()
+	defer emailClient.Close()
+
+	emailClient.EnqueuePasswordResetEmail(email, resetString)
+	redisclient := utils.NewRedisClient()
+	cacheKey := fmt.Sprintf("password_reset:%s", resetString)
+	err = utils.SetRedisKey(redisclient, cacheKey, email, time.Duration(15)*time.Minute)
+	if err != nil {
+		return "", errors.New("unable to create reset link")
+	}
+	return resetString, nil
+
+}
+
+func VerifyPasswordResetToken(token string) (string, error) {
+	redisclient := utils.NewRedisClient()
+	cacheKey := fmt.Sprintf("password_reset:%s", token)
+
+	value, err := utils.GetRedisValue(redisclient, cacheKey)
+
+	if err != nil {
+		return "", err
+	}
+
+	if value == "" {
+		return "", errors.New("no data found")
+	}
+
+	return value, nil
+
+}
+
+func ResetPassword(token string, password string) error {
+
+	fmt.Printf("Resetting password for token %s and password %s", token, password)
+
+	if password == "" || len(password) < 8 {
+		return errors.New("password is required")
+	}
+
+	hashedPassword, err := libs.HashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	email, err := VerifyPasswordResetToken(token)
+	if err != nil {
+		return err
+	}
+
+	if email == "" {
+		return errors.New("invalid or expired token")
+	}
+
+	if err := database.DB.Model(&models.User{}).Where("email = ?", email).Update("password", hashedPassword).Error; err != nil {
+		return err
+	}
+
+	redisclient := utils.NewRedisClient()
+	cacheKey := fmt.Sprintf("password_reset:%s", token)
+	utils.DeleteRedisKey(redisclient, cacheKey)
+
+	return nil
+}
 
 func VerifyOtp(code string) (*libs.TokenPair, string, error) {
 	hashedKey := libs.SHA256(code)
@@ -294,4 +283,63 @@ func VerifyOtp(code string) (*libs.TokenPair, string, error) {
 	activity := fmt.Sprintf(constants.NewLoginActivityLog, libs.FormatDate(time.Now()))
 	jobs.NewActivityJobClient().EnqueueNewActivity(dbUser.ID, activity)
 	return token, "login", nil
+}
+
+func RefreshToken(refreshToken string) (*libs.TokenPair, error) {
+	jwtService, err := libs.NewJWTServiceFromEnv()
+	if err != nil {
+		log.Fatal(err)
+	}
+	key := fmt.Sprintf("refresh_token:%s", refreshToken)
+	redisClient := utils.NewRedisClient()
+	savedUserId, err := utils.GetRedisValue(redisClient, key)
+
+	if err != nil {
+		return &libs.TokenPair{}, errors.New("invalid refresh token")
+	}
+
+	userInfo, err := jwtService.ValidateRefreshToken(refreshToken)
+	if err != nil {
+		return &libs.TokenPair{}, errors.New("invalid refresh token")
+	}
+
+	var dbUser models.User
+
+	err = database.DB.Where("id = ?", userInfo.ID).First(&dbUser).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &libs.TokenPair{}, errors.New("user not found")
+		}
+		return &libs.TokenPair{}, err
+	}
+
+	userID, err := libs.ConvertStringToUint(savedUserId)
+	if err != nil {
+		return &libs.TokenPair{}, errors.New("invalid refresh token")
+	}
+
+	if savedUserId == "" || userID != (dbUser.ID) {
+		return &libs.TokenPair{}, errors.New("invalid refresh token")
+	}
+
+	if dbUser.IsBlocked {
+		return &libs.TokenPair{}, errors.New("your account has been disabled, please contact support")
+	}
+
+	loggedInUser := &libs.UserInfo{
+		ID:      dbUser.ID,
+		UserID:  dbUser.UserID,
+		Email:   dbUser.Email,
+		IsAdmin: dbUser.IsAdmin,
+	}
+
+	// invalidate old refresh token
+	utils.DeleteRedisKey(redisClient, key)
+
+	newToken, err := jwtService.GenerateTokenPair(loggedInUser)
+	if err != nil {
+		return &libs.TokenPair{}, err
+	}
+
+	return newToken, nil
 }

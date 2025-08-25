@@ -65,7 +65,7 @@ func GetAllNotifications(userID uint32, pagination types.PaginationRequest) (*No
 			ID:        notification.ID,
 			UserID:    notification.UserID,
 			Type:      models.NotificationType(notification.Type),
-			Title:     getNotificationTitle(notification.Title),
+			Title:     notification.Title,
 			Message:   notification.Message,
 			Read:      notification.Read,
 			CreatedAt: notification.CreatedAt,
@@ -357,17 +357,18 @@ func getNotificationTitle(notificationType string) string {
 }
 
 // GetAllNotificationsService retrieves all notifications for a user with query parameters
-func GetAllNotificationsService(userID string, query types.NotificationQuery) (*types.GetNotificationsResponse, error) {
-	// Set defaults
-	if query.Page <= 0 {
-		query.Page = 1
-	}
+func GetAllNotificationsService(userID uint, query types.NotificationQuery) (*types.GetNotificationsResponse, error) {
 	if query.Limit <= 0 {
 		query.Limit = 20
 	}
 
 	// Build GORM query
-	db := database.DB.Model(&models.Notification{}).Where("user_id = ?", userID)
+	db := database.DB.Model(&models.Notification{}).
+		Where("user_id = ?", userID)
+
+	if query.Cursor != nil {
+		db = db.Where("id < ?", *query.Cursor)
+	}
 
 	// Apply filters
 	switch query.ReadStatus {
@@ -389,23 +390,25 @@ func GetAllNotificationsService(userID string, query types.NotificationQuery) (*
 
 	// Get notifications
 	var notifications []models.Notification
-	offset := (query.Page - 1) * query.Limit
-	err := db.Order("created_at DESC").Offset(offset).Limit(query.Limit).Find(&notifications).Error
+	err := db.Order("created_at DESC").Limit(query.Limit).Find(&notifications).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to get notifications: %w", err)
 	}
 
+	if len(notifications) == query.Limit {
+		nextCursor := notifications[len(notifications)-1].ID
+		query.Cursor = &nextCursor
+	} else {
+		query.Cursor = nil // No more notifications
+	}
+
 	// Get unread count
-	var unreadCount int64
-	database.DB.Model(&models.Notification{}).Where("user_id = ? AND read = ?", userID, false).Count(&unreadCount)
+	unreadCount, err := GetUnreadNotificationCountService(userID)
 
 	// Convert to response format
 	response := &types.GetNotificationsResponse{
 		Notifications: types.ToNotificationsResponse(notifications),
-		Total:         total,
-		Page:          query.Page,
-		Limit:         query.Limit,
-		TotalPages:    int((total + int64(query.Limit) - 1) / int64(query.Limit)),
+		NextCursor:    query.Cursor,
 		UnreadCount:   unreadCount,
 	}
 
@@ -443,7 +446,7 @@ func MarkAllNotificationsReadService(userID string) (int64, error) {
 }
 
 // GetUnreadNotificationCountService returns unread notification count for a user
-func GetUnreadNotificationCountService(userID string) (int64, error) {
+func GetUnreadNotificationCountService(userID uint) (int64, error) {
 	var count int64
 	err := database.DB.Model(&models.Notification{}).
 		Where("user_id = ? AND read = ?", userID, false).
@@ -569,4 +572,44 @@ func GetRecentNotifications(userID uint32, limit int) ([]types.NotificationRespo
 	}
 
 	return notificationResponses, nil
+}
+
+func NotificationMarkReadBulkService(userID uint, notificationIDs []uint) (int64, error) {
+	if userID == 0 {
+		return 0, errors.New("user ID is required")
+	}
+
+	if len(notificationIDs) == 0 {
+		return 0, errors.New("no notification IDs provided")
+	}
+
+	result := database.DB.Model(&models.Notification{}).
+		Where("user_id = ? AND id IN ?", userID, notificationIDs).
+		Update("read", true)
+
+	if result.Error != nil {
+		return 0, fmt.Errorf("failed to mark notifications as read: %w", result.Error)
+	}
+
+	return result.RowsAffected, nil
+}
+
+func NotificationDeleteBulkService(userID uint, notificationIDs []uint) (int64, error) {
+	if userID == 0 {
+		return 0, errors.New("user ID is required")
+	}
+
+	if len(notificationIDs) == 0 {
+		return 0, errors.New("no notification IDs provided")
+	}
+
+	result := database.DB.Model(&models.Notification{}).
+		Where("user_id = ? AND id IN ?", userID, notificationIDs).
+		Delete(&models.Notification{})
+
+	if result.Error != nil {
+		return 0, fmt.Errorf("failed to delete notifications: %w", result.Error)
+	}
+
+	return result.RowsAffected, nil
 }

@@ -32,7 +32,6 @@ func CreateTransaction(userId uint, transaction types.NewTransactionRequest) (ty
 		return types.CreateNewTransactionResponse{}, "INTERNAL_SERVER_ERROR", errors.New("failed to generate transaction index")
 	}
 	var transactionDir = utils.GetConvertdirection(transaction.FromCurrency)
-	notificationClient := jobs.NewNotificationJobClient()
 
 	switch transaction.MethodOfPayment {
 	case "wallet":
@@ -75,6 +74,7 @@ func CreateTransaction(userId uint, transaction types.NewTransactionRequest) (ty
 					if err := database.DB.Create(&transaction).Error; err != nil {
 						return types.CreateNewTransactionResponse{}, "INTERNAL_SERVER_ERROR", errors.New("failed to create transaction")
 					}
+
 					return types.CreateNewTransactionResponse{}, code, err
 				}
 			}
@@ -105,16 +105,6 @@ func CreateTransaction(userId uint, transaction types.NewTransactionRequest) (ty
 		if err := database.DB.Create(&transaction).Error; err != nil {
 			return types.CreateNewTransactionResponse{}, "INTERNAL_SERVER_ERROR", errors.New("failed to create transaction")
 		}
-
-		title := "Transaction Successful"
-		message := fmt.Sprintf("Your transfer of %s to %s was successful.", utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency), transaction.TransactionDetails.RecipientName)
-
-		notificationClient.EnqueueCreateNotification(
-			user.ID,
-			models.NotificationType("transfer"),
-			title,
-			message,
-		)
 
 		return types.CreateNewTransactionResponse{
 			Transaction: types.TransactionResponse{
@@ -189,6 +179,18 @@ func HandleDirectTransaction(transaction types.NewTransactionRequest, transactio
 	if err := database.DB.Create(&pendingTransaction).Error; err != nil {
 		return types.CreateNewTransactionResponse{}, "INTERNAL_SERVER_ERROR", errors.New("failed to create transaction")
 	}
+
+	title := "Transaction Successful"
+	message := fmt.Sprintf("Your transfer of %s to %s was successful.", utils.FormatCurrency(fromAmount, transaction.FromCurrency), transaction.RecipientName)
+	notificationClient := jobs.NewNotificationJobClient()
+	defer notificationClient.Close()
+
+	notificationClient.EnqueueCreateNotification(
+		userId,
+		models.NotificationType("transfer"),
+		title,
+		message,
+	)
 
 	return types.CreateNewTransactionResponse{
 		Transaction: types.TransactionResponse{

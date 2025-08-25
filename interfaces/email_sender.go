@@ -1,5 +1,7 @@
 package interfaces
 
+import "github.com/Veedsify/JeanPayGoBackend/database/models"
+
 // EmailSender defines the interface for sending emails
 type EmailSender interface {
 	// SendWelcomeEmail sends a welcome email to a new user
@@ -7,9 +9,6 @@ type EmailSender interface {
 
 	// SendPasswordResetEmail sends a password reset email
 	SendPasswordResetEmail(to, resetToken string) error
-
-	// SendTransactionNotification sends a transaction notification email
-	SendTransactionNotification(to, transactionType, amount, transactionID string) error
 
 	// SendEmailVerification sends an email verification email
 	SendEmailVerification(to, userName, verificationToken string) error
@@ -25,6 +24,12 @@ type EmailSender interface {
 
 	// SendTwoFactorAuthenticationEmail sends a 2FA email
 	SendTwoFactorAuthenticationEmail(to, userName, verificationUrl string) error
+
+	// SendTransactionApprovedEmail sends a transaction approved email
+	SendTransactionApprovedEmail(to string, userName string, transaction models.Transaction) error
+
+	// SendTransactionRejectedEmail sends a transaction rejected email
+	SendTransactionRejectedEmail(to string, userName string, transaction models.Transaction, reason string) error
 }
 
 // EmailJobHandler defines the interface for handling email jobs

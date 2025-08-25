@@ -3,17 +3,24 @@ package services
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"html/template"
+
 	"log"
 	"net/smtp"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/Veedsify/JeanPayGoBackend/database/models"
 	"github.com/Veedsify/JeanPayGoBackend/interfaces"
+	"github.com/Veedsify/JeanPayGoBackend/templates"
+	"github.com/Veedsify/JeanPayGoBackend/utils"
 )
 
 // EmailConfig holds the SMTP server configuration
@@ -88,7 +95,8 @@ type EmailValidationResult struct {
 
 var (
 	// SERVER is the base URL for the application
-	SERVER = GetEnvOrDefault("SERVER_URL", "http://localhost:8080")
+	SERVER   = GetEnvOrDefault("SERVER_URL", "http://localhost:8080")
+	FRONTEND = GetEnvOrDefault("FRONTEND_URL", "http://localhost:3000")
 
 	// emailRegex is used for basic email validation
 	emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
@@ -142,12 +150,12 @@ func NewEmailService(config *EmailConfig) *EmailService {
 // NewEmailServiceFromEnv creates email service from environment variables
 func NewEmailServiceFromEnv() (*EmailService, error) {
 	config := &EmailConfig{
-		SMTPHost:     getEnvOrDefault("SMTP_HOST", "smtp.gmail.com"),
+		SMTPHost:     GetEnvOrDefault("SMTP_HOST", "smtp.gmail.com"),
 		SMTPPort:     getEnvIntOrDefault("SMTP_PORT", 587),
 		Username:     os.Getenv("SMTP_USERNAME"),
 		Password:     os.Getenv("SMTP_PASSWORD"),
 		FromEmail:    os.Getenv("FROM_EMAIL"),
-		FromName:     getEnvOrDefault("FROM_NAME", "JeanPay"),
+		FromName:     GetEnvOrDefault("FROM_NAME", "JeanPay"),
 		UseTLS:       getEnvBoolOrDefault("SMTP_USE_TLS", true),
 		InsecureTLS:  getEnvBoolOrDefault("SMTP_INSECURE_TLS", false),
 		Timeout:      time.Duration(getEnvIntOrDefault("SMTP_TIMEOUT", 30)) * time.Second,
@@ -189,223 +197,45 @@ func (c *EmailConfig) Validate() error {
 
 // loadDefaultTemplates loads the default email templates
 func (es *EmailService) loadDefaultTemplates() {
+
+	// --- Welcome Template ---
 	es.templates["welcome"] = &EmailTemplate{
-		Name:    "welcome",
-		Subject: "Welcome to JeanPay!",
-		HTMLContent: `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to JeanPay</title>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background-color: #007bff; color: white; padding: 20px; text-align: center; }
-        .content { padding: 20px; background-color: #f9f9f9; }
-        .button { display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin: 15px 0; }
-        .footer { padding: 20px; text-align: center; color: #666; font-size: 12px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Welcome to JeanPay!</h1>
-        </div>
-        <div class="content">
-            <h2>Hello {{.UserName}}!</h2>
-            <p>Thank you for joining our platform. We're excited to have you on board!</p>
-            <p>You can now:</p>
-            <ul>
-                <li>Make secure payments</li>
-                <li>Manage your account</li>
-                <li>Track your transactions</li>
-            </ul>
-            <p>To activate your account, please click the button below:</p>
-            <a href="{{.ServerURL}}/activate?token={{.Token}}" class="button">Activate Account</a>
-            <p>If you have any questions, feel free to contact our support team.</p>
-        </div>
-        <div class="footer">
-            <p>Best regards,<br>The JeanPay Team</p>
-            <p>This email was sent to {{.Email}}. If you did not sign up for JeanPay, please ignore this email.</p>
-        </div>
-    </div>
-</body>
-</html>`,
-		TextContent: `Welcome to JeanPay, {{.UserName}}!
-
-Thank you for joining our platform. We're excited to have you on board!
-
-You can now:
-- Make secure payments
-- Manage your account
-- Track your transactions
-
-To activate your account, please visit: {{.ServerURL}}/activate?token={{.Token}}
-
-If you have any questions, feel free to contact our support team.
-
-Best regards,
-The JeanPay Team`,
+		Name:        "welcome",
+		Subject:     "🎉 Welcome to JeanPay - Your Premium Payment Experience Awaits!",
+		HTMLContent: templates.WelcomeTemplate(),
+		TextContent: templates.WelcomePlainTextTemplate(),
 	}
 
+	// --- Password Reset Template ---
 	es.templates["password_reset"] = &EmailTemplate{
-		Name:    "password_reset",
-		Subject: "Password Reset Request - JeanPay",
-		HTMLContent: `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Password Reset Request</title>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background-color: #dc3545; color: white; padding: 20px; text-align: center; }
-        .content { padding: 20px; background-color: #f9f9f9; }
-        .button { display: inline-block; padding: 12px 24px; background-color: #dc3545; color: white; text-decoration: none; border-radius: 5px; margin: 15px 0; }
-        .warning { background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 15px 0; }
-        .footer { padding: 20px; text-align: center; color: #666; font-size: 12px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Password Reset Request</h1>
-        </div>
-        <div class="content">
-            <p>You have requested to reset your password for your JeanPay account.</p>
-            <p>Please click the button below to reset your password:</p>
-            <a href="{{.ServerURL}}/reset-password?token={{.ResetToken}}" class="button">Reset Password</a>
-            <div class="warning">
-                <strong>⚠️ This link will expire in 1 hour.</strong>
-            </div>
-            <p>If you did not request this password reset, please ignore this email and your password will remain unchanged.</p>
-        </div>
-        <div class="footer">
-            <p>Best regards,<br>The JeanPay Team</p>
-            <p>This email was sent to {{.Email}}.</p>
-        </div>
-    </div>
-</body>
-</html>`,
-		TextContent: `Password Reset Request - JeanPay
-
-You have requested to reset your password for your JeanPay account.
-
-Please visit the following link to reset your password:
-{{.ServerURL}}/reset-password?token={{.ResetToken}}
-
-⚠️ This link will expire in 1 hour.
-
-If you did not request this password reset, please ignore this email and your password will remain unchanged.
-
-Best regards,
-The JeanPay Team`,
+		Name:        "password_reset",
+		Subject:     "🔐 Secure Password Reset Request - JeanPay",
+		HTMLContent: templates.PasswordResetTemplate(),
+		TextContent: templates.PasswordResetPlainTextTemplate(),
 	}
 
-	es.templates["transaction_notification"] = &EmailTemplate{
-		Name:    "transaction_notification",
-		Subject: "Transaction {{.TransactionType}} - JeanPay",
-		HTMLContent: `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Transaction {{.TransactionType}}</title>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background-color: #28a745; color: white; padding: 20px; text-align: center; }
-        .content { padding: 20px; background-color: #f9f9f9; }
-        .transaction-details { background-color: white; border-left: 4px solid #28a745; padding: 15px; margin: 15px 0; }
-        .amount { font-size: 24px; font-weight: bold; color: #28a745; }
-        .footer { padding: 20px; text-align: center; color: #666; font-size: 12px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Transaction {{.TransactionType}}</h1>
-        </div>
-        <div class="content">
-            <p>Your transaction has been processed successfully.</p>
-            <div class="transaction-details">
-                <p><strong>Transaction Type:</strong> {{.TransactionType}}</p>
-                <p><strong>Amount:</strong> <span class="amount">{{.Amount}}</span></p>
-                <p><strong>Transaction ID:</strong> {{.TransactionID}}</p>
-                <p><strong>Date:</strong> {{.Date}}</p>
-            </div>
-            <p>You can view your complete transaction history in your JeanPay account dashboard.</p>
-        </div>
-        <div class="footer">
-            <p>Best regards,<br>The JeanPay Team</p>
-            <p>This email was sent to {{.Email}}.</p>
-        </div>
-    </div>
-</body>
-</html>`,
-		TextContent: `Transaction {{.TransactionType}} - JeanPay
-
-Your transaction has been processed successfully.
-
-Transaction Details:
-- Type: {{.TransactionType}}
-- Amount: {{.Amount}}
-- Transaction ID: {{.TransactionID}}
-- Date: {{.Date}}
-
-You can view your complete transaction history in your JeanPay account dashboard.
-
-Best regards,
-The JeanPay Team`,
-	}
-
+	// --- Two-Factor Authentication Template ---
 	es.templates["two_factor_authentication"] = &EmailTemplate{
-		Name:    "two_factor_authentication",
-		Subject: "Two-Factor Authentication - JeanPay",
-		HTMLContent: `
-<!DOCTYPE html>
-		<html>
-		<head>
-						<meta charset="UTF-8">
-						<meta name="viewport" content="width=device-width, initial-scale=1.0">
-						<title>Two-Factor Authentication</title>
-						<style>
-										body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-										.container { max-width: 600px; margin: 0 auto; padding: 20px; }
-										.header { background-color: #17a2b8; color: white; padding: 20px; text-align: center; }
-										.content { padding: 20px; background-color: #f9f9f9; }
-										.button { display: inline-block; padding: 12px 24px; background-color: #17a2b8; color: white; text-decoration: none; border-radius: 5px; margin: 15px 0; }
-										.footer { padding: 20px; text-align: center; color: #666; font-size: 12px; }
-										.code-box { font-size: 24px; font-weight: bold; background: #e9ecef; padding: 10px 20px; border-radius: 5px; display: inline-block; margin: 15px 0; letter-spacing: 2px; }
-						</style>
-		</head>
-		<body>
-						<div class="container">
-										<div class="header">
-														<h1>Two-Factor Authentication</h1>
-										</div>
-										<div class="content">
-														<h2>Hello {{.UserName}}!</h2>
-														<p> Your login verification codew:</p>
-	<div class="code-box" style="font-size: 24px; font-weight: bold; background: #e9ecef; padding: 10px 20px; border-radius: 5px; display: inline-block; margin: 15px 0; letter-spacing: 2px;">
-															{{.VerificationCode}}
-														</div>
-														<p>This code will expire in 10 minutes.</p>
-														<p>If you did not request this verification, please ignore this email.</p>
-										</div>
-										<div class="footer">
-														<p>Best regards,<br>The JeanPay Team</p>
-														<p>This email was sent to {{.Email}}.</p>
-										</div>
-						</div>
-		</body>
-		</html>
-		`,
+		Name:        "two_factor_authentication",
+		Subject:     "🔐 Your JeanPay Security Code - Expires in 10 Minutes",
+		HTMLContent: templates.TwoFactorAuthenticationTemplate(),
+		TextContent: templates.TwoFactorAuthenticationPlainTemplate(),
+	}
+
+	// --- Transaction Approved Template ---
+	es.templates["transaction_approved"] = &EmailTemplate{
+		Name:        "transaction_approved",
+		Subject:     "✅ {{.TransactionTypeDisplay}} Approved - JeanPay",
+		HTMLContent: templates.TransactionApprovedTemplate(),
+		TextContent: templates.TransactionApprovedPlainTextTemplate(),
+	}
+
+	// --- Transaction Rejected Template ---
+	es.templates["transaction_rejected"] = &EmailTemplate{
+		Name:        "transaction_rejected",
+		Subject:     "❌ {{.TransactionTypeDisplay}} Rejected - JeanPay",
+		HTMLContent: templates.TransactionRejectedTemplate(),
+		TextContent: templates.TransactionRejectedPlainTextTemplate(),
 	}
 }
 
@@ -508,6 +338,33 @@ func (es *EmailService) SendHTMLEmail(to []string, subject, htmlBody string) err
 	return es.SendEmail(message)
 }
 
+// loadLogoAsBase64 loads the logo file and encodes it as base64
+func (es *EmailService) loadLogoAsBase64() (string, error) {
+	logoPath := filepath.Join("backend", "assets", "logo.png")
+
+	// Check if logo file exists
+	if _, err := os.Stat(logoPath); os.IsNotExist(err) {
+		// If logo doesn't exist, return empty string (template will handle gracefully)
+		if es.logger != nil {
+			es.logger.Printf("Logo file not found at %s, emails will be sent without logo", logoPath)
+		}
+		return "", nil
+	}
+
+	// Read the logo file
+	logoData, err := os.ReadFile(logoPath)
+	if err != nil {
+		if es.logger != nil {
+			es.logger.Printf("Failed to read logo file: %v", err)
+		}
+		return "", nil // Return empty string instead of error to allow emails to be sent
+	}
+
+	// Encode to base64
+	logoBase64 := base64.StdEncoding.EncodeToString(logoData)
+	return logoBase64, nil
+}
+
 // SendTemplatedEmail sends an email using a template
 func (es *EmailService) SendTemplatedEmail(to []string, templateName string, data map[string]any) error {
 	template, exists := es.templates[templateName]
@@ -519,15 +376,29 @@ func (es *EmailService) SendTemplatedEmail(to []string, templateName string, dat
 	if data == nil {
 		data = make(map[string]any)
 	}
-	data["ServerURL"] = SERVER
+	data["ServerURL"] = FRONTEND
 	data["Email"] = strings.Join(to, ", ")
 	data["Date"] = time.Now().Format("January 2, 2006 at 3:04 PM")
+
+	// Load and add logo as base64
+	logoBase64, err := es.loadLogoAsBase64()
+	// logoBase64 := (`image:data64`)
+	if err != nil {
+		// Log error but don't fail the email send
+		if es.logger != nil {
+			es.logger.Printf("Failed to load logo: %v", err)
+		}
+	}
+	data["LogoBase64"] = logoBase64
 
 	// Render templates
 	subject, err := es.renderTemplate(template.Subject, data)
 	if err != nil {
 		return fmt.Errorf("failed to render subject template: %w", err)
 	}
+
+	b, _ := json.MarshalIndent(data, "", "  ")
+	fmt.Println(string(b))
 
 	htmlBody, err := es.renderTemplate(template.HTMLContent, data)
 	if err != nil {
@@ -569,21 +440,79 @@ func (es *EmailService) SendEmailVerification(to, userName, verificationToken st
 }
 
 // SendPasswordResetEmail sends a password reset email
-func (es *EmailService) SendPasswordResetEmail(to, resetToken string) error {
+func (es *EmailService) SendPasswordResetEmail(to string, resetToken string) error {
 	data := map[string]any{
 		"ResetToken": resetToken,
 	}
 	return es.SendTemplatedEmail([]string{to}, "password_reset", data)
 }
 
-// SendTransactionNotification sends a transaction notification email
-func (es *EmailService) SendTransactionNotification(to, transactionType, amount, transactionID string) error {
+func (es *EmailService) SendTransactionApprovedEmail(to string, userName string, transaction models.Transaction) error {
+	// Get dynamic data based on transaction type
+	dynamicData := templates.GetApprovedTransactionData(string(transaction.TransactionType), transaction)
+
 	data := map[string]any{
-		"TransactionType": transactionType,
-		"Amount":          amount,
-		"TransactionID":   transactionID,
+		"UserName":        userName,
+		"Email":           to,
+		"TransactionID":   transaction.TransactionID,
+		"TransactionType": transaction.TransactionType,
+		"Amount":          utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency),
+		"Date":            transaction.CreatedAt.Format("January 2, 2006 at 3:04 PM"),
+		"ServerURL":       FRONTEND,
+		"RecipientName":   transaction.TransactionDetails.RecipientName,
+		"BankName":        transaction.TransactionDetails.BankName,
+		"AccountNumber":   transaction.TransactionDetails.AccountNumber,
+		"PhoneNumber":     transaction.TransactionDetails.PhoneNumber,
+		"Network":         transaction.TransactionDetails.Network,
+		"FromAmount":      utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency),
+		"ToAmount":        utils.FormatCurrency(transaction.TransactionDetails.ToAmount, transaction.TransactionDetails.ToCurrency),
+		"FromCurrency":    transaction.TransactionDetails.FromCurrency,
+		"ToCurrency":      transaction.TransactionDetails.ToCurrency,
+		"ExchangeRate":    fmt.Sprintf("1 %s = %.4f %s", transaction.TransactionDetails.FromCurrency, transaction.TransactionDetails.ToAmount/transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.ToCurrency),
 	}
-	return es.SendTemplatedEmail([]string{to}, "transaction_notification", data)
+
+	// Merge dynamic data
+	for key, value := range dynamicData {
+		data[key] = value
+	}
+
+	return es.SendTemplatedEmail([]string{to}, "transaction_approved", data)
+}
+
+func (es *EmailService) SendTransactionRejectedEmail(to string, userName string, transaction models.Transaction, reason string) error {
+	// Get dynamic data based on transaction type
+	dynamicData := templates.GetRejectedTransactionData(string(transaction.TransactionType), transaction)
+
+	// Get user-friendly reason
+	friendlyReason := templates.GetUserFriendlyRejectionReason(reason, string(transaction.TransactionType))
+
+	data := map[string]any{
+		"UserName":        userName,
+		"Email":           to,
+		"TransactionID":   transaction.TransactionID,
+		"TransactionType": transaction.TransactionType,
+		"Amount":          utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency),
+		"Date":            transaction.CreatedAt.Format("January 2, 2006 at 3:04 PM"),
+		"Reason":          friendlyReason,
+		"ServerURL":       FRONTEND,
+		"RecipientName":   transaction.TransactionDetails.RecipientName,
+		"BankName":        transaction.TransactionDetails.BankName,
+		"AccountNumber":   transaction.TransactionDetails.AccountNumber,
+		"PhoneNumber":     transaction.TransactionDetails.PhoneNumber,
+		"Network":         transaction.TransactionDetails.Network,
+		"FromAmount":      utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency),
+		"ToAmount":        utils.FormatCurrency(transaction.TransactionDetails.ToAmount, transaction.TransactionDetails.ToCurrency),
+		"FromCurrency":    transaction.TransactionDetails.FromCurrency,
+		"ToCurrency":      transaction.TransactionDetails.ToCurrency,
+		"ExchangeRate":    fmt.Sprintf("1 %s = %.4f %s", transaction.TransactionDetails.FromCurrency, transaction.TransactionDetails.ToAmount/transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.ToCurrency),
+	}
+
+	// Merge dynamic data
+	for key, value := range dynamicData {
+		data[key] = value
+	}
+
+	return es.SendTemplatedEmail([]string{to}, "transaction_rejected", data)
 }
 
 // renderTemplate renders a template with the given data
@@ -823,12 +752,6 @@ func ValidateEmailBatch(emails []string) map[string]EmailValidationResult {
 }
 
 // Helper functions for environment variables
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
 
 func getEnvIntOrDefault(key string, defaultValue int) int {
 	if value := os.Getenv(key); value != "" {
