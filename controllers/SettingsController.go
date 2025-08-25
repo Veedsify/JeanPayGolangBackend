@@ -183,7 +183,7 @@ func GetUserPreferencesEndpoint(c *gin.Context) {
 
 // UpdateUserPreferencesEndpoint updates user preferences
 func UpdateUserPreferencesEndpoint(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	claims, exists := c.Get("user")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error":   true,
@@ -201,7 +201,9 @@ func UpdateUserPreferencesEndpoint(c *gin.Context) {
 		return
 	}
 
-	preferences, err := services.UpdateUserPreferences(userID.(uint32), req)
+	userID := claims.(*libs.JWTClaims).ID
+
+	preferences, err := services.UpdateUserPreferences(userID, req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   true,
@@ -366,7 +368,7 @@ func UpdatePreferencesEndpoint(c *gin.Context) {
 		return
 	}
 
-	preferences, err := services.UpdateUserPreferences(claims.UserID, req)
+	preferences, err := services.UpdateUserPreferences(claims.ID, req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   true,
@@ -405,7 +407,7 @@ func UpdateProfileEndpoint(c *gin.Context) {
 		return
 	}
 
-	profile, err := services.UpdateUserProfile(claims.UserID, req)
+	profile, err := services.UpdateUserProfile(claims.ID, req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   true,
@@ -444,7 +446,7 @@ func UpdateSecuritySettingsEndpoint(c *gin.Context) {
 		return
 	}
 
-	settings, err := services.UpdateSecuritySettings(claims.UserID, req)
+	settings, err := services.UpdateSecuritySettings(claims.ID, req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   true,
@@ -512,7 +514,7 @@ func GenerateTwoFactorQREndpoint(c *gin.Context) {
 
 	claims := claimsAny.(*libs.JWTClaims)
 
-	qrData, err := services.GenerateTwoFactorQR(claims.UserID)
+	qrData, err := services.GenerateTwoFactorQR(claims.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   true,

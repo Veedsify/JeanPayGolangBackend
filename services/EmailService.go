@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"html/template"
 
@@ -396,9 +395,6 @@ func (es *EmailService) SendTemplatedEmail(to []string, templateName string, dat
 	if err != nil {
 		return fmt.Errorf("failed to render subject template: %w", err)
 	}
-
-	b, _ := json.MarshalIndent(data, "", "  ")
-	fmt.Println(string(b))
 
 	htmlBody, err := es.renderTemplate(template.HTMLContent, data)
 	if err != nil {

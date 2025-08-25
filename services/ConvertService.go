@@ -160,10 +160,10 @@ func GetExchangeRates() (*types.ExchangeRatesResponse, error) {
 	// Get GHS to NGN rate
 	ghsToNgnRate, err := getCurrentExchangeRate("GHS", "NGN")
 	if err == nil {
-		rates["GHS_NGN"] = ghsToNgnRate
+		rates["GHS-NGN"] = ghsToNgnRate
 		source = "database"
 	} else {
-		rates["GHS_NGN"] = 188.68 // Default rate
+		rates["GHS-NGN"] = 188.68 // Default rate
 	}
 
 	lastUpdated = time.Now()
@@ -302,13 +302,13 @@ func GetConversionHistory(userID uint32, pagination types.PaginationRequest, sta
 
 // getCurrentExchangeRate gets the current exchange rate between two currencies
 func getCurrentExchangeRate(fromCurrency, toCurrency string) (float64, error) {
-	var exchangeRate models.ExchangeRate
+	var rate models.Rate
 
-	err := database.DB.Where("from_currency = ? AND to_currency = ? AND is_active = ?",
-		fromCurrency, toCurrency, true).First(&exchangeRate).Error
+	err := database.DB.Where("from_currency = ? AND to_currency = ? AND active = ?",
+		fromCurrency, toCurrency, true).Order("id DESC").First(&rate).Error
 
 	if err == nil {
-		return exchangeRate.Rate, nil
+		return rate.Rate, nil
 	}
 
 	if !errors.Is(err, gorm.ErrRecordNotFound) {

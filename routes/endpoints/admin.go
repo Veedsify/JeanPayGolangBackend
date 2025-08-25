@@ -10,6 +10,9 @@ func AdminRoutes(admin *gin.RouterGroup) {
 	{
 		// Admin dashboard routes
 		admin.POST(constants.AdminDashboard, controllers.GetAdminDashboardStatistics)
+		admin.POST(constants.AdminDashboardOverview, controllers.GetAdminDashboardOverview)
+		admin.POST(constants.AdminDashboardMetrics, controllers.GetAdminDashboardMetrics)
+		admin.GET(constants.AdminDashboardRealtime, controllers.GetAdminDashboardRealtime)
 
 		// Admin user management routes
 		admin.POST(constants.AdminUsersBase+constants.AdminUsersAll, controllers.GetAdminUsersAll)

@@ -169,13 +169,13 @@ func ChangeUserPassword(userID uint, req ChangePasswordRequest) error {
 }
 
 // UpdateUserPreferences updates user preferences
-func UpdateUserPreferences(userID uint32, req UserPreferencesRequest) (*UserPreferencesResponse, error) {
+func UpdateUserPreferences(userID uint, req UserPreferencesRequest) (*UserPreferencesResponse, error) {
 	if userID == 0 {
 		return nil, errors.New("user ID is required")
 	}
 
 	var user models.User
-	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("user not found")
 		}
@@ -239,7 +239,7 @@ func GetUserPreferences(userID uint32) (*UserPreferencesResponse, error) {
 	}
 
 	var user models.User
-	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("user not found")
 		}
@@ -263,7 +263,7 @@ func EnableTwoFactorAuth(userID uint) error {
 	}
 
 	var user models.User
-	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errors.New("user not found")
 		}
@@ -295,7 +295,7 @@ func DisableTwoFactorAuth(userID uint) error {
 	}
 
 	var user models.User
-	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errors.New("user not found")
 		}
@@ -365,13 +365,13 @@ type TwoFactorQRResponse struct {
 }
 
 // UpdateUserProfile updates user profile information
-func UpdateUserProfile(userID uint32, req UpdateProfileRequest) (any, error) {
+func UpdateUserProfile(userID uint, req UpdateProfileRequest) (any, error) {
 	if userID == 0 {
 		return nil, errors.New("user ID is required")
 	}
 
 	var user models.User
-	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("user not found")
 		}
@@ -389,7 +389,7 @@ func UpdateUserProfile(userID uint32, req UpdateProfileRequest) (any, error) {
 	// Check if email is being changed and if it already exists
 	if req.Email != "" && req.Email != user.Email {
 		var existingUser models.User
-		if err := tx.Where("email = ? AND user_id != ?", req.Email, userID).First(&existingUser).Error; err == nil {
+		if err := tx.Where("email = ? AND id != ?", req.Email, userID).First(&existingUser).Error; err == nil {
 			tx.Rollback()
 			return nil, errors.New("email already exists")
 		}
@@ -427,7 +427,7 @@ func UpdateUserProfile(userID uint32, req UpdateProfileRequest) (any, error) {
 	}
 
 	// Refresh user data
-	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
 		return nil, fmt.Errorf("failed to fetch updated user: %w", err)
 	}
 
@@ -435,13 +435,13 @@ func UpdateUserProfile(userID uint32, req UpdateProfileRequest) (any, error) {
 }
 
 // UpdateSecuritySettings updates security settings
-func UpdateSecuritySettings(userID uint32, req UpdateSecuritySettingsRequest) (map[string]interface{}, error) {
+func UpdateSecuritySettings(userID uint, req UpdateSecuritySettingsRequest) (map[string]interface{}, error) {
 	if userID == 0 {
 		return nil, errors.New("user ID is required")
 	}
 
 	var user models.User
-	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("user not found")
 		}
@@ -468,7 +468,7 @@ func UpdateSecuritySettings(userID uint32, req UpdateSecuritySettingsRequest) (m
 	}
 
 	// Refresh user data
-	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
 		return nil, fmt.Errorf("failed to fetch updated user: %w", err)
 	}
 
@@ -777,13 +777,13 @@ func UpdatePlatformSettings(req PlatformSettingsRequest, adminID uint) (*Platfor
 }
 
 // GenerateTwoFactorQR generates QR code for two-factor authentication setup
-func GenerateTwoFactorQR(userID uint32) (*TwoFactorQRResponse, error) {
+func GenerateTwoFactorQR(userID uint) (*TwoFactorQRResponse, error) {
 	if userID == 0 {
 		return nil, errors.New("user ID is required")
 	}
 
 	var user models.User
-	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("user not found")
 		}
@@ -816,7 +816,7 @@ func EnableTwoFactorAuthentication(userID uint, req EnableTwoFactorRequest) erro
 	}
 
 	var user models.User
-	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errors.New("user not found")
 		}
@@ -854,7 +854,7 @@ func DisableTwoFactorAuthentication(userID uint, req DisableTwoFactorRequest) er
 	}
 
 	var user models.User
-	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errors.New("user not found")
 		}
@@ -890,7 +890,7 @@ func DeactivateAccount(userID uint, reason string) error {
 	}
 
 	var user models.User
-	if err := database.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errors.New("user not found")
 		}

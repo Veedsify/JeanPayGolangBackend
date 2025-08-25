@@ -94,9 +94,12 @@ const (
 	SettingsTwoFactorDisable = "/security/two-factor/disable"
 
 	// Admin paths
-	AdminBase      = "/admin"
-	AdminLogin     = "/login"
-	AdminDashboard = "/dashboard"
+	AdminBase              = "/admin"
+	AdminLogin             = "/login"
+	AdminDashboard         = "/dashboard"
+	AdminDashboardOverview = "/dashboard/overview"
+	AdminDashboardMetrics  = "/dashboard/metrics"
+	AdminDashboardRealtime = "/dashboard/realtime"
 
 	// Admin settings paths
 	AdminSettingsBase   = "/settings"

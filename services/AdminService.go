@@ -74,10 +74,10 @@ func GetAdminDashboardStatistics() (types.DashboardResponse, error) {
 	var depositCount int64
 	db.Model(&models.TransactionDetails{}).
 		Joins("JOIN transactions ON transactions.id = transaction_details.transaction_id").
-		Where("transactions.transaction_type = ? AND DATE_FORMAT(transactions.created_at, '%Y-%m') = ?", models.Deposit, currentMonth).
-		Select("COALESCE(SUM(from_amount), 0)").Row().Scan(&depositVolume)
+		Where("transactions.transaction_type = ? AND to_char(transactions.created_at, 'YYYY-MM') = ?", models.Deposit, currentMonth).
+		Select("COALESCE(SUM(transaction_details.from_amount), 0)").Row().Scan(&depositVolume)
 	db.Model(&models.Transaction{}).
-		Where("transaction_type = ? AND DATE_FORMAT(created_at, '%Y-%m') = ?", models.Deposit, currentMonth).
+		Where("transaction_type = ? AND to_char(created_at, 'YYYY-MM') = ?", models.Deposit, currentMonth).
 		Count(&depositCount)
 
 	monthlyVolumes = append(monthlyVolumes, types.MonthlyVolume{
@@ -86,40 +86,352 @@ func GetAdminDashboardStatistics() (types.DashboardResponse, error) {
 		Count:     depositCount,
 	})
 
-	// Get withdrawal volume
-	var withdrawalVolume float64
-	var withdrawalCount int64
+	// Get transfer volume
+	var transferVolume float64
+	var transferCount int64
 	db.Model(&models.TransactionDetails{}).
 		Joins("JOIN transactions ON transactions.id = transaction_details.transaction_id").
-		Where("transactions.transaction_type = ? AND DATE_FORMAT(transactions.created_at, '%Y-%m') = ?", models.Withdrawal, currentMonth).
-		Select("COALESCE(SUM(from_amount), 0)").Row().Scan(&withdrawalVolume)
+		Where("transactions.transaction_type = ? AND to_char(transactions.created_at, 'YYYY-MM') = ?", models.Transfer, currentMonth).
+		Select("COALESCE(SUM(transaction_details.from_amount), 0)").Row().Scan(&transferVolume)
 	db.Model(&models.Transaction{}).
-		Where("transaction_type = ? AND DATE_FORMAT(created_at, '%Y-%m') = ?", models.Withdrawal, currentMonth).
-		Count(&withdrawalCount)
+		Where("transaction_type = ? AND to_char(created_at, 'YYYY-MM') = ?", models.Transfer, currentMonth).
+		Count(&transferCount)
 
 	monthlyVolumes = append(monthlyVolumes, types.MonthlyVolume{
-		Direction: "WITHDRAWAL",
-		Total:     withdrawalVolume,
-		Count:     withdrawalCount,
+		Direction: "TRANSFER",
+		Total:     transferVolume,
+		Count:     transferCount,
 	})
 
 	dashboard.MonthlyVolume = monthlyVolumes
 
 	// Get recent transactions with user info
-	var recentTransactions []types.TransactionWithUser
+	type TransactionUserJoin struct {
+		TransactionID   string                      `json:"transaction_id"`
+		UserID          uint                        `json:"user_id"`
+		Amount          float64                     `json:"amount"`
+		Currency        string                      `json:"currency"`
+		Code            string                      `json:"code"`
+		Status          models.TransactionStatus    `json:"status"`
+		TransactionType models.TransactionType      `json:"transaction_type"`
+		Reference       string                      `json:"reference"`
+		Direction       models.TransactionDirection `json:"direction"`
+		Description     string                      `json:"description"`
+		CreatedAt       time.Time                   `json:"created_at"`
+		UpdatedAt       time.Time                   `json:"updated_at"`
+		PaymentType     models.PaymentType          `json:"payment_type"`
+		FirstName       *string                     `json:"first_name"`
+		LastName        *string                     `json:"last_name"`
+		Email           *string                     `json:"email"`
+		PhoneNumber     *string                     `json:"phone_number"`
+	}
+
+	var joinResults []TransactionUserJoin
 	if err := db.Table("transactions").
-		Select("transactions.*, users.first_name, users.last_name, users.email, users.phone_number").
+		Select("transactions.transaction_id as transaction_id, transactions.user_id, COALESCE(transaction_details.from_amount, 0) as amount, transaction_details.from_currency as currency, transactions.code, transactions.status, transactions.transaction_type, transactions.reference, transactions.direction, transactions.description, transactions.created_at, transactions.updated_at, transactions.payment_type, users.first_name, users.last_name, users.email, users.phone_number").
 		Joins("LEFT JOIN users ON users.id = transactions.user_id").
+		Joins("LEFT JOIN transaction_details ON transaction_details.transaction_id = transactions.id").
 		Order("transactions.created_at DESC").
 		Limit(10).
-		Scan(&recentTransactions).Error; err != nil {
+		Scan(&joinResults).Error; err != nil {
 		log.Printf("Error getting recent transactions: %v", err)
 		return dashboard, err
+	}
+
+	// Convert to TransactionWithUser format
+	var recentTransactions []types.TransactionWithUser
+	for _, result := range joinResults {
+		txn := types.TransactionWithUser{
+			TransactionID:   result.TransactionID,
+			UserID:          result.UserID,
+			Amount:          result.Amount,
+			Currency:        result.Currency,
+			Code:            result.Code,
+			Status:          result.Status,
+			TransactionType: result.TransactionType,
+			Reference:       result.Reference,
+			Direction:       result.Direction,
+			Description:     result.Description,
+			CreatedAt:       result.CreatedAt,
+			UpdatedAt:       result.UpdatedAt,
+			PaymentType:     result.PaymentType,
+		}
+
+		// Add user info if available
+		if result.FirstName != nil && result.LastName != nil {
+			txn.User = &types.UserBasicInfo{
+				UserID:      uint(result.UserID),
+				FirstName:   *result.FirstName,
+				LastName:    *result.LastName,
+				Email:       *result.Email,
+				PhoneNumber: *result.PhoneNumber,
+			}
+		}
+
+		recentTransactions = append(recentTransactions, txn)
 	}
 
 	dashboard.RecentTransactions = recentTransactions
 
 	return dashboard, nil
+}
+
+// GetAdminDashboardOverview retrieves dashboard overview with date filters
+func GetAdminDashboardOverview(fromDate, toDate string) (types.DashboardResponse, error) {
+	db := database.DB
+	var dashboard types.DashboardResponse
+
+	// If no date range provided, use current month
+	if fromDate == "" || toDate == "" {
+		return GetAdminDashboardStatistics()
+	}
+
+	// Get users count for date range
+	var totalUsers int64
+	if err := db.Model(&models.User{}).
+		Where("created_at BETWEEN ? AND ?", fromDate, toDate).
+		Count(&totalUsers).Error; err != nil {
+		log.Printf("Error getting users for date range: %v", err)
+		return dashboard, err
+	}
+
+	// Get transactions count for date range
+	var totalTransactions int64
+	if err := db.Model(&models.Transaction{}).
+		Where("created_at BETWEEN ? AND ?", fromDate, toDate).
+		Count(&totalTransactions).Error; err != nil {
+		log.Printf("Error getting transactions for date range: %v", err)
+		return dashboard, err
+	}
+
+	// Get pending transactions count for date range
+	var pendingTxns int64
+	if err := db.Model(&models.Transaction{}).
+		Where("status = ? AND created_at BETWEEN ? AND ?", models.TransactionPending, fromDate, toDate).
+		Count(&pendingTxns).Error; err != nil {
+		log.Printf("Error getting pending transactions for date range: %v", err)
+		return dashboard, err
+	}
+
+	// Get completed transactions count for date range
+	var completedTxns int64
+	if err := db.Model(&models.Transaction{}).
+		Where("status = ? AND created_at BETWEEN ? AND ?", models.TransactionCompleted, fromDate, toDate).
+		Count(&completedTxns).Error; err != nil {
+		log.Printf("Error getting completed transactions for date range: %v", err)
+		return dashboard, err
+	}
+
+	// Get failed transactions count for date range
+	var failedTxns int64
+	if err := db.Model(&models.Transaction{}).
+		Where("status = ? AND created_at BETWEEN ? AND ?", models.TransactionFailed, fromDate, toDate).
+		Count(&failedTxns).Error; err != nil {
+		log.Printf("Error getting failed transactions for date range: %v", err)
+		return dashboard, err
+	}
+
+	dashboard.Summary = types.DashboardSummary{
+		TotalUsers:        totalUsers,
+		TotalTransactions: totalTransactions,
+		PendingTxns:       pendingTxns,
+		CompletedTxns:     completedTxns,
+		FailedTxns:        failedTxns,
+	}
+
+	// Get volume data for date range
+	var monthlyVolumes []types.MonthlyVolume
+
+	// Get deposit volume for date range
+	var depositVolume float64
+	var depositCount int64
+	db.Model(&models.TransactionDetails{}).
+		Joins("JOIN transactions ON transactions.id = transaction_details.transaction_id").
+		Where("transactions.transaction_type = ? AND transactions.created_at BETWEEN ? AND ?", models.Deposit, fromDate, toDate).
+		Select("COALESCE(SUM(transaction_details.from_amount), 0)").Row().Scan(&depositVolume)
+	db.Model(&models.Transaction{}).
+		Where("transaction_type = ? AND created_at BETWEEN ? AND ?", models.Deposit, fromDate, toDate).
+		Count(&depositCount)
+
+	monthlyVolumes = append(monthlyVolumes, types.MonthlyVolume{
+		Direction: "DEPOSIT",
+		Total:     depositVolume,
+		Count:     depositCount,
+	})
+
+	// Get transfer volume for date range
+	var transferVolume float64
+	var transferCount int64
+	db.Model(&models.TransactionDetails{}).
+		Joins("JOIN transactions ON transactions.id = transaction_details.transaction_id").
+		Where("transactions.transaction_type = ? AND transactions.created_at BETWEEN ? AND ?", models.Transfer, fromDate, toDate).
+		Select("COALESCE(SUM(transaction_details.from_amount), 0)").Row().Scan(&transferVolume)
+	db.Model(&models.Transaction{}).
+		Where("transaction_type = ? AND created_at BETWEEN ? AND ?", models.Transfer, fromDate, toDate).
+		Count(&transferCount)
+
+	monthlyVolumes = append(monthlyVolumes, types.MonthlyVolume{
+		Direction: "TRANSFER",
+		Total:     transferVolume,
+		Count:     transferCount,
+	})
+
+	dashboard.MonthlyVolume = monthlyVolumes
+
+	// Get recent transactions for date range
+	type TransactionUserJoin struct {
+		TransactionID   string                      `json:"transaction_id"`
+		UserID          uint                        `json:"user_id"`
+		Amount          float64                     `json:"amount"`
+		Currency        string                      `json:"currency"`
+		Code            string                      `json:"code"`
+		Status          models.TransactionStatus    `json:"status"`
+		TransactionType models.TransactionType      `json:"transaction_type"`
+		Reference       string                      `json:"reference"`
+		Direction       models.TransactionDirection `json:"direction"`
+		Description     string                      `json:"description"`
+		CreatedAt       time.Time                   `json:"created_at"`
+		UpdatedAt       time.Time                   `json:"updated_at"`
+		PaymentType     models.PaymentType          `json:"payment_type"`
+		FirstName       *string                     `json:"first_name"`
+		LastName        *string                     `json:"last_name"`
+		Email           *string                     `json:"email"`
+		PhoneNumber     *string                     `json:"phone_number"`
+	}
+
+	var joinResults []TransactionUserJoin
+	if err := db.Table("transactions").
+		Select("transactions.transaction_id as transaction_id, transactions.user_id, COALESCE(transaction_details.from_amount, 0) as amount, transaction_details.from_currency as currency, transactions.code, transactions.status, transactions.transaction_type, transactions.reference, transactions.direction, transactions.description, transactions.created_at, transactions.updated_at, transactions.payment_type, users.first_name, users.last_name, users.email, users.phone_number").
+		Joins("LEFT JOIN users ON users.id = transactions.user_id").
+		Joins("LEFT JOIN transaction_details ON transaction_details.transaction_id = transactions.id").
+		Where("transactions.created_at BETWEEN ? AND ?", fromDate, toDate).
+		Order("transactions.created_at DESC").
+		Limit(10).
+		Scan(&joinResults).Error; err != nil {
+		log.Printf("Error getting recent transactions for date range: %v", err)
+		return dashboard, err
+	}
+
+	// Convert to TransactionWithUser format
+	var recentTransactions []types.TransactionWithUser
+	for _, result := range joinResults {
+		txn := types.TransactionWithUser{
+			TransactionID:   result.TransactionID,
+			UserID:          result.UserID,
+			Amount:          result.Amount,
+			Currency:        result.Currency,
+			Code:            result.Code,
+			Status:          result.Status,
+			TransactionType: result.TransactionType,
+			Reference:       result.Reference,
+			Direction:       result.Direction,
+			Description:     result.Description,
+			CreatedAt:       result.CreatedAt,
+			UpdatedAt:       result.UpdatedAt,
+			PaymentType:     result.PaymentType,
+		}
+
+		// Add user info if available
+		if result.FirstName != nil && result.LastName != nil {
+			txn.User = &types.UserBasicInfo{
+				UserID:      uint(result.UserID),
+				FirstName:   *result.FirstName,
+				LastName:    *result.LastName,
+				Email:       *result.Email,
+				PhoneNumber: *result.PhoneNumber,
+			}
+		}
+
+		recentTransactions = append(recentTransactions, txn)
+	}
+
+	dashboard.RecentTransactions = recentTransactions
+
+	return dashboard, nil
+}
+
+// GetAdminDashboardMetrics retrieves dashboard metrics for specific date range
+func GetAdminDashboardMetrics(fromDate, toDate string) (types.DashboardMetrics, error) {
+	db := database.DB
+	var metrics types.DashboardMetrics
+
+	// Parse dates
+	from, err := time.Parse("2006-01-02", fromDate)
+	if err != nil {
+		return metrics, fmt.Errorf("invalid from_date format: %v", err)
+	}
+	to, err := time.Parse("2006-01-02", toDate)
+	if err != nil {
+		return metrics, fmt.Errorf("invalid to_date format: %v", err)
+	}
+
+	// Calculate previous period for comparison
+	duration := to.Sub(from)
+	prevFrom := from.Add(-duration)
+	prevTo := from
+
+	// User growth metrics
+	var currentUsers, previousUsers int64
+	db.Model(&models.User{}).
+		Where("created_at BETWEEN ? AND ?", from, to).
+		Count(&currentUsers)
+	db.Model(&models.User{}).
+		Where("created_at BETWEEN ? AND ?", prevFrom, prevTo).
+		Count(&previousUsers)
+
+	userGrowthPercentage := float64(0)
+	if previousUsers > 0 {
+		userGrowthPercentage = ((float64(currentUsers) - float64(previousUsers)) / float64(previousUsers)) * 100
+	}
+
+	metrics.UserGrowth = types.MetricData{
+		Current:    currentUsers,
+		Previous:   previousUsers,
+		Percentage: userGrowthPercentage,
+	}
+
+	// Transaction volume metrics
+	var currentTxns, previousTxns int64
+	db.Model(&models.Transaction{}).
+		Where("created_at BETWEEN ? AND ?", from, to).
+		Count(&currentTxns)
+	db.Model(&models.Transaction{}).
+		Where("created_at BETWEEN ? AND ?", prevFrom, prevTo).
+		Count(&previousTxns)
+
+	txnVolumePercentage := float64(0)
+	if previousTxns > 0 {
+		txnVolumePercentage = ((float64(currentTxns) - float64(previousTxns)) / float64(previousTxns)) * 100
+	}
+
+	metrics.TransactionVolume = types.MetricData{
+		Current:    currentTxns,
+		Previous:   previousTxns,
+		Percentage: txnVolumePercentage,
+	}
+
+	// Revenue metrics (placeholder - implement when revenue tracking is added)
+	metrics.Revenue = types.MetricData{
+		Current:    0,
+		Previous:   0,
+		Percentage: 0,
+	}
+
+	// Conversion rate metrics (placeholder)
+	metrics.ConversionRate = types.MetricData{
+		Current:    0,
+		Previous:   0,
+		Percentage: 0,
+	}
+
+	return metrics, nil
+}
+
+// GetAdminDashboardRealtime retrieves real-time dashboard data
+func GetAdminDashboardRealtime() (types.DashboardResponse, error) {
+	// For now, return the same as regular dashboard statistics
+	// This can be enhanced later with WebSocket support for real-time updates
+	return GetAdminDashboardStatistics()
 }
 
 // GetAdminUsersAll retrieves paginated list of all users with filters
@@ -892,11 +1204,10 @@ func UnblockUser(userID string, adminID uint) (types.AdminActionResponse, error)
 }
 
 // GetUserTransactionHistory retrieves transaction history for a specific user
-func GetAdminUserTransactionHistory(userID uint, params types.AdminTransactionQuery) (types.AdminTransactionResponse, error) {
+func GetAdminUserTransactionHistory(userID string, params types.UserTransactionQuery) (types.AdminTransactionResponse, error) {
 	db := database.DB
 	var response types.AdminTransactionResponse
 
-	// Set default values
 	if params.Page <= 0 {
 		params.Page = 1
 	}
@@ -906,9 +1217,31 @@ func GetAdminUserTransactionHistory(userID uint, params types.AdminTransactionQu
 
 	offset := (params.Page - 1) * params.Limit
 
+	// Define struct for joined data
+	type TransactionUserJoin struct {
+		TransactionID   string                      `json:"transaction_id"`
+		UserID          uint                        `json:"user_id"`
+		Amount          float64                     `json:"amount"`
+		Currency        string                      `json:"currency"`
+		Code            string                      `json:"code"`
+		Status          models.TransactionStatus    `json:"status"`
+		TransactionType models.TransactionType      `json:"transaction_type"`
+		Reference       string                      `json:"reference"`
+		Direction       models.TransactionDirection `json:"direction"`
+		Description     string                      `json:"description"`
+		CreatedAt       time.Time                   `json:"created_at"`
+		UpdatedAt       time.Time                   `json:"updated_at"`
+		PaymentType     models.PaymentType          `json:"payment_type"`
+		FirstName       *string                     `json:"first_name"`
+		LastName        *string                     `json:"last_name"`
+		Email           *string                     `json:"email"`
+		PhoneNumber     *string                     `json:"phone_number"`
+	}
+
 	query := db.Table("transactions").
-		Select("transactions.*, users.first_name, users.last_name, users.email, users.phone_number").
+		Select("transactions.transaction_id as transaction_id, transactions.user_id, COALESCE(transaction_details.from_amount, 0) as amount, transaction_details.from_currency as currency, transactions.code, transactions.status, transactions.transaction_type, transactions.reference, transactions.direction, transactions.description, transactions.created_at, transactions.updated_at, transactions.payment_type, users.first_name, users.last_name, users.email, users.phone_number").
 		Joins("LEFT JOIN users ON users.id = transactions.user_id").
+		Joins("LEFT JOIN transaction_details ON transaction_details.transaction_id = transactions.id").
 		Where("transactions.user_id = ?", userID)
 
 	// Apply filters
@@ -923,10 +1256,43 @@ func GetAdminUserTransactionHistory(userID uint, params types.AdminTransactionQu
 	var total int64
 	db.Model(&models.Transaction{}).Where("user_id = ?", userID).Count(&total)
 
-	// Get transactions
-	var transactions []types.TransactionWithUser
-	if err := query.Order("transactions.created_at DESC").Offset(offset).Limit(params.Limit).Scan(&transactions).Error; err != nil {
+	// Get joined results
+	var joinResults []TransactionUserJoin
+	if err := query.Order("transactions.created_at DESC").Offset(offset).Limit(params.Limit).Scan(&joinResults).Error; err != nil {
 		return response, err
+	}
+
+	// Convert to TransactionWithUser format
+	var transactions []types.TransactionWithUser
+	for _, result := range joinResults {
+		txn := types.TransactionWithUser{
+			TransactionID:   result.TransactionID,
+			UserID:          result.UserID,
+			Amount:          result.Amount,
+			Currency:        result.Currency,
+			Code:            result.Code,
+			Status:          result.Status,
+			TransactionType: result.TransactionType,
+			Reference:       result.Reference,
+			Direction:       result.Direction,
+			Description:     result.Description,
+			CreatedAt:       result.CreatedAt,
+			UpdatedAt:       result.UpdatedAt,
+			PaymentType:     result.PaymentType,
+		}
+
+		// Add user info if available
+		if result.FirstName != nil && result.LastName != nil {
+			txn.User = &types.UserBasicInfo{
+				UserID:      uint(result.UserID),
+				FirstName:   *result.FirstName,
+				LastName:    *result.LastName,
+				Email:       *result.Email,
+				PhoneNumber: *result.PhoneNumber,
+			}
+		}
+
+		transactions = append(transactions, txn)
 	}
 
 	response.Transactions = transactions
@@ -1199,19 +1565,74 @@ func GetTransactionsByStatus(status models.TransactionStatus, params types.Admin
 
 	offset := (params.Page - 1) * params.Limit
 
+	// Define struct for joined data
+	type TransactionUserJoin struct {
+		TransactionID   string                      `json:"transaction_id"`
+		UserID          uint                        `json:"user_id"`
+		Amount          float64                     `json:"amount"`
+		Currency        string                      `json:"currency"`
+		Code            string                      `json:"code"`
+		Status          models.TransactionStatus    `json:"status"`
+		TransactionType models.TransactionType      `json:"transaction_type"`
+		Reference       string                      `json:"reference"`
+		Direction       models.TransactionDirection `json:"direction"`
+		Description     string                      `json:"description"`
+		CreatedAt       time.Time                   `json:"created_at"`
+		UpdatedAt       time.Time                   `json:"updated_at"`
+		PaymentType     models.PaymentType          `json:"payment_type"`
+		FirstName       *string                     `json:"first_name"`
+		LastName        *string                     `json:"last_name"`
+		Email           *string                     `json:"email"`
+		PhoneNumber     *string                     `json:"phone_number"`
+	}
+
 	query := db.Table("transactions").
-		Select("transactions.*, users.first_name, users.last_name, users.email, users.phone_number").
+		Select("transactions.transaction_id as transaction_id, transactions.user_id, COALESCE(transaction_details.from_amount, 0) as amount, transaction_details.from_currency as currency, transactions.code, transactions.status, transactions.transaction_type, transactions.reference, transactions.direction, transactions.description, transactions.created_at, transactions.updated_at, transactions.payment_type, users.first_name, users.last_name, users.email, users.phone_number").
 		Joins("LEFT JOIN users ON users.id = transactions.user_id").
+		Joins("LEFT JOIN transaction_details ON transaction_details.transaction_id = transactions.id").
 		Where("transactions.status = ?", status)
 
 	// Get total count
 	var total int64
 	db.Model(&models.Transaction{}).Where("status = ?", status).Count(&total)
 
-	// Get transactions
-	var transactions []types.TransactionWithUser
-	if err := query.Order("transactions.created_at DESC").Offset(offset).Limit(params.Limit).Scan(&transactions).Error; err != nil {
+	// Get joined results
+	var joinResults []TransactionUserJoin
+	if err := query.Order("transactions.created_at DESC").Offset(offset).Limit(params.Limit).Scan(&joinResults).Error; err != nil {
 		return response, err
+	}
+
+	// Convert to TransactionWithUser format
+	var transactions []types.TransactionWithUser
+	for _, result := range joinResults {
+		txn := types.TransactionWithUser{
+			TransactionID:   result.TransactionID,
+			UserID:          result.UserID,
+			Amount:          result.Amount,
+			Currency:        result.Currency,
+			Code:            result.Code,
+			Status:          result.Status,
+			TransactionType: result.TransactionType,
+			Reference:       result.Reference,
+			Direction:       result.Direction,
+			Description:     result.Description,
+			CreatedAt:       result.CreatedAt,
+			UpdatedAt:       result.UpdatedAt,
+			PaymentType:     result.PaymentType,
+		}
+
+		// Add user info if available
+		if result.FirstName != nil && result.LastName != nil {
+			txn.User = &types.UserBasicInfo{
+				UserID:      uint(result.UserID),
+				FirstName:   *result.FirstName,
+				LastName:    *result.LastName,
+				Email:       *result.Email,
+				PhoneNumber: *result.PhoneNumber,
+			}
+		}
+
+		transactions = append(transactions, txn)
 	}
 
 	response.Transactions = transactions

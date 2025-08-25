@@ -91,3 +91,18 @@ type MonthlyVolData struct {
 	Month  string  `json:"month"`
 	Volume float64 `json:"volume"`
 }
+
+// MetricData represents metric comparison data
+type MetricData struct {
+	Current    int64   `json:"current"`
+	Previous   int64   `json:"previous"`
+	Percentage float64 `json:"percentage"`
+}
+
+// DashboardMetrics represents dashboard metrics for comparison
+type DashboardMetrics struct {
+	UserGrowth        MetricData `json:"userGrowth"`
+	TransactionVolume MetricData `json:"transactionVolume"`
+	Revenue           MetricData `json:"revenue"`
+	ConversionRate    MetricData `json:"conversionRate"`
+}

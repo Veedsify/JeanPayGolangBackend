@@ -29,6 +29,99 @@ func GetAdminDashboardStatistics(c *gin.Context) {
 	})
 }
 
+// GetAdminDashboardOverview retrieves dashboard overview with date filters
+func GetAdminDashboardOverview(c *gin.Context) {
+	var params struct {
+		FromDate string `json:"from_date"`
+		ToDate   string `json:"to_date"`
+	}
+
+	if err := c.ShouldBindJSON(&params); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   true,
+			"message": "Invalid request parameters",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	overview, err := services.GetAdminDashboardOverview(params.FromDate, params.ToDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   true,
+			"message": "Failed to retrieve dashboard overview",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"error":   false,
+		"message": "Dashboard overview retrieved successfully",
+		"data":    overview,
+	})
+}
+
+// GetAdminDashboardMetrics retrieves dashboard metrics for specific date range
+func GetAdminDashboardMetrics(c *gin.Context) {
+	var params struct {
+		FromDate string `json:"from_date"`
+		ToDate   string `json:"to_date"`
+	}
+
+	if err := c.ShouldBindJSON(&params); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   true,
+			"message": "Invalid request parameters",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	if params.FromDate == "" || params.ToDate == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   true,
+			"message": "Both from_date and to_date are required",
+		})
+		return
+	}
+
+	metrics, err := services.GetAdminDashboardMetrics(params.FromDate, params.ToDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   true,
+			"message": "Failed to retrieve dashboard metrics",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"error":   false,
+		"message": "Dashboard metrics retrieved successfully",
+		"data":    metrics,
+	})
+}
+
+// GetAdminDashboardRealtime retrieves real-time dashboard data
+func GetAdminDashboardRealtime(c *gin.Context) {
+	realtime, err := services.GetAdminDashboardRealtime()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   true,
+			"message": "Failed to retrieve real-time dashboard data",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"error":   false,
+		"message": "Real-time dashboard data retrieved successfully",
+		"data":    realtime,
+	})
+}
+
 func GetAdminUsersAll(c *gin.Context) {
 	var params types.UserQueryParams
 	if err := c.ShouldBindJSON(&params); err != nil {
@@ -589,7 +682,7 @@ func GetUserTransactions(c *gin.Context) {
 		return
 	}
 
-	var params types.AdminTransactionQuery
+	var params types.UserTransactionQuery
 	if err := c.ShouldBindQuery(&params); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   true,
@@ -599,17 +692,7 @@ func GetUserTransactions(c *gin.Context) {
 		return
 	}
 
-	userId, err := libs.ConvertStringToUint(userID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   true,
-			"message": "Invalid User ID format",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	transactions, err := services.GetAdminUserTransactionHistory(userId, params)
+	transactions, err := services.GetAdminUserTransactionHistory(userID, params)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   true,

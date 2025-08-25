@@ -405,6 +405,10 @@ func GetAllNotificationsService(userID uint, query types.NotificationQuery) (*ty
 	// Get unread count
 	unreadCount, err := GetUnreadNotificationCountService(userID)
 
+	if err != nil {
+		return nil, fmt.Errorf("failed to get unread count: %w", err)
+	}
+
 	// Convert to response format
 	response := &types.GetNotificationsResponse{
 		Notifications: types.ToNotificationsResponse(notifications),
