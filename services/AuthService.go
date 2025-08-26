@@ -34,7 +34,7 @@ func RegisterUser(user types.RegisterUser) error {
 		LastName:   user.LastName,
 		Country:    user.Country,
 		IsAdmin:    false,
-		IsVerified: true,
+		IsVerified: false, // User starts unverified until they verify their email
 		UserID:     uniqUUid,
 		Setting: models.Setting{
 			DefaultCurrency: models.DefaultCurrency(libs.GetDefaultCurrency(string(user.Country))),
@@ -57,8 +57,38 @@ func RegisterUser(user types.RegisterUser) error {
 		return errors.New("sorry this account already exists")
 	}
 
+	// Generate email verification token
+	jwtService, err := libs.NewJWTServiceFromEnv()
+	if err != nil {
+		log.Printf("Error creating JWT service: %v", err)
+		return errors.New("failed to create verification token")
+	}
+
+	userInfo := &libs.UserInfo{
+		ID:      createUser.ID,
+		UserID:  createUser.UserID,
+		Email:   createUser.Email,
+		IsAdmin: createUser.IsAdmin,
+	}
+
+	verificationToken, err := jwtService.GenerateEmailVerificationToken(userInfo)
+	if err != nil {
+		log.Printf("Error generating verification token: %v", err)
+		return errors.New("failed to create verification token")
+	}
+
+	// Cache the verification token in Redis for 24 hours
+	redisClient := utils.NewRedisClient()
+	cacheKey := fmt.Sprintf("email_verification:%s", verificationToken)
+	err = utils.SetRedisKey(redisClient, cacheKey, createUser.ID, time.Hour*24)
+	if err != nil {
+		log.Printf("Error caching verification token: %v", err)
+		return errors.New("failed to cache verification token")
+	}
+
+	// Send welcome email with verification token
 	emailJob := jobs.NewEmailJobClient()
-	err = emailJob.EnqueueWelcomeEmail(user.Email, user.FirstName, "")
+	err = emailJob.EnqueueWelcomeEmail(user.Email, user.FirstName, verificationToken)
 	if err != nil {
 		fmt.Printf("Error creating welcome email job: %v\n", err)
 	}
@@ -160,6 +190,103 @@ func LoginUser(user types.LoginUser) (*libs.TokenPair, string, error) {
 //
 //		return nil
 //	}
+
+func VerifyEmailToken(token string) error {
+	// Validate the JWT token
+	jwtService, err := libs.NewJWTServiceFromEnv()
+	if err != nil {
+		return errors.New("failed to initialize JWT service")
+	}
+
+	claims, err := jwtService.ValidateEmailVerificationToken(token)
+	if err != nil {
+		return errors.New("invalid or expired verification token")
+	}
+
+	// Check if token exists in Redis cache
+	redisClient := utils.NewRedisClient()
+	cacheKey := fmt.Sprintf("email_verification:%s", token)
+	cachedUserID, err := utils.GetRedisValue(redisClient, cacheKey)
+	if err != nil || cachedUserID == "" {
+		return errors.New("verification token has expired or already been used")
+	}
+
+	// Verify that the cached user ID matches the token claims
+	userID, err := libs.ConvertStringToUint(cachedUserID)
+	if err != nil || userID != claims.ID {
+		return errors.New("invalid verification token")
+	}
+
+	// Update user verification status
+	err = database.DB.Model(&models.User{}).Where("id = ?", claims.ID).Update("is_verified", true).Error
+	if err != nil {
+		return errors.New("failed to verify user account")
+	}
+
+	// Remove the token from cache after successful verification
+	utils.DeleteRedisKey(redisClient, cacheKey)
+
+	// Log activity
+	activity := fmt.Sprintf(constants.EmailVerificationActivityLog, libs.FormatDate(time.Now()))
+	jobs.NewActivityJobClient().EnqueueNewActivity(claims.ID, activity)
+
+	return nil
+}
+
+func ResendEmailVerification(email string) error {
+	// Get user by email from database
+	var user models.User
+	err := database.DB.Where("email = ?", email).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("user not found")
+		}
+		return errors.New("database error")
+	}
+
+	if user.IsVerified {
+		return errors.New("user is already verified")
+	}
+
+	// Generate new email verification token
+	jwtService, err := libs.NewJWTServiceFromEnv()
+	if err != nil {
+		log.Printf("Error creating JWT service: %v", err)
+		return errors.New("failed to create verification token")
+	}
+
+	userInfo := &libs.UserInfo{
+		ID:      user.ID,
+		UserID:  user.UserID,
+		Email:   user.Email,
+		IsAdmin: user.IsAdmin,
+	}
+
+	verificationToken, err := jwtService.GenerateEmailVerificationToken(userInfo)
+	if err != nil {
+		log.Printf("Error generating verification token: %v", err)
+		return errors.New("failed to create verification token")
+	}
+
+	// Cache the verification token in Redis for 24 hours
+	redisClient := utils.NewRedisClient()
+	cacheKey := fmt.Sprintf("email_verification:%s", verificationToken)
+	err = utils.SetRedisKey(redisClient, cacheKey, user.ID, time.Hour*24)
+	if err != nil {
+		log.Printf("Error caching verification token: %v", err)
+		return errors.New("failed to cache verification token")
+	}
+
+	// Send verification email
+	emailJob := jobs.NewEmailJobClient()
+	err = emailJob.EnqueueWelcomeEmail(user.Email, user.FirstName, verificationToken)
+	if err != nil {
+		fmt.Printf("Error creating verification email job: %v\n", err)
+		return errors.New("failed to send verification email")
+	}
+
+	return nil
+}
 func CreatePasswordReset(email string) (string, error) {
 	user, err := GetUserByEmail(email)
 	if err != nil {

@@ -11,6 +11,8 @@ const (
 	AuthBase                = "/auth"
 	AuthLogin               = "/login"
 	AuthVerify              = "/verify"
+	AuthEmailVerify         = "/verify-email"
+	AuthResendVerification  = "/resend-verification"
 	AuthPasswordResetEmail  = "/password-reset-email"
 	AuthResetPassWordVerify = "/reset-password-verify"
 	AuthSignup              = "/register"

@@ -11,6 +11,8 @@ func AuthRoutes(router *gin.RouterGroup) {
 		auth := router.Group(constants.AuthBase)
 		auth.POST(constants.AuthSignup, controllers.RegisterUserEndpoint)
 		auth.POST(constants.AuthLogin, controllers.LoginUserEndpoint)
+		auth.GET(constants.AuthEmailVerify, controllers.VerifyUserEndpoint)
+		auth.POST(constants.AuthResendVerification, controllers.ResendEmailVerificationEndpoint)
 		// auth.POST(constants.AuthVerify, controllers.VerifyUserEndpoint)
 		auth.POST(constants.AuthPasswordResetEmail, controllers.CreatePasswordResetLinkEndpoint)
 		auth.GET(constants.AuthResetPassWordVerify, controllers.ResetPasswordTokenVerifyEndpoint)

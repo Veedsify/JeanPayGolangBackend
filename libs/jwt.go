@@ -298,3 +298,44 @@ func (j *JWTService) IsTokenBlacklisted(tokenString string, blacklist TokenBlack
 
 	return blacklist.IsBlacklisted(claims.TokenID)
 }
+
+// GenerateEmailVerificationToken generates a JWT token for email verification
+func (j *JWTService) GenerateEmailVerificationToken(userInfo *UserInfo) (string, error) {
+	tokenID, err := generateTokenID()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate token ID: %w", err)
+	}
+
+	now := time.Now()
+	// Email verification tokens expire in 24 hours
+	expiry := now.Add(24 * time.Hour)
+
+	claims := &JWTClaims{
+		ID:        userInfo.ID,
+		UserID:    userInfo.UserID,
+		Email:     userInfo.Email,
+		IsAdmin:   userInfo.IsAdmin,
+		TokenID:   tokenID,
+		TokenType: "email_verification",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expiry),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+			Issuer:    j.config.Issuer,
+			Subject:   fmt.Sprintf("%d", userInfo.UserID),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(j.config.SecretKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign email verification token: %w", err)
+	}
+
+	return tokenString, nil
+}
+
+// ValidateEmailVerificationToken validates an email verification token and returns claims
+func (j *JWTService) ValidateEmailVerificationToken(tokenString string) (*JWTClaims, error) {
+	return j.validateToken(tokenString, j.config.SecretKey, "email_verification")
+}

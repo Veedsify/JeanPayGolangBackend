@@ -375,7 +375,10 @@ func (es *EmailService) SendTemplatedEmail(to []string, templateName string, dat
 	if data == nil {
 		data = make(map[string]any)
 	}
-	data["ServerURL"] = FRONTEND
+	// Only set ServerURL if it's not already provided
+	if _, exists := data["ServerURL"]; !exists {
+		data["ServerURL"] = FRONTEND
+	}
 	data["Email"] = strings.Join(to, ", ")
 	data["Date"] = time.Now().Format("January 2, 2006 at 3:04 PM")
 
@@ -420,8 +423,10 @@ func (es *EmailService) SendTemplatedEmail(to []string, templateName string, dat
 // SendWelcomeEmail sends a welcome email to new users
 func (es *EmailService) SendWelcomeEmail(to, userName, token string) error {
 	data := map[string]any{
-		"UserName": userName,
-		"Token":    token,
+		"UserName":    userName,
+		"Token":       token,
+		"ServerURL":   SERVER,   // Use backend server URL for verification link
+		"FrontendURL": FRONTEND, // Use frontend URL for help/policy links
 	}
 	return es.SendTemplatedEmail([]string{to}, "welcome", data)
 }
@@ -431,6 +436,8 @@ func (es *EmailService) SendEmailVerification(to, userName, verificationToken st
 	data := map[string]any{
 		"UserName":          userName,
 		"VerificationToken": verificationToken,
+		"ServerURL":         SERVER,   // Use backend server URL for verification link
+		"FrontendURL":       FRONTEND, // Use frontend URL for help/policy links
 	}
 	return es.SendTemplatedEmail([]string{to}, "welcome", data)
 }

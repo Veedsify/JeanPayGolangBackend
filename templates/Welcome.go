@@ -39,7 +39,7 @@ func WelcomeTemplate() string {
                 <p><strong>Your security is our priority.</strong> We use advanced encryption and multi-factor authentication to keep your account safe.</p>
             </div>
             <div class="cta-section">
-                <a href="{{.ServerURL}}/activate?token={{.Token}}" class="cta-button">
+                <a href="{{.ServerURL}}/api/auth/verify-email?token={{.Token}}" class="cta-button">
                     Activate Your Account Now
                 </a>
             </div>
@@ -54,9 +54,9 @@ func WelcomeTemplate() string {
             <div class="footer-text">This email was sent to {{.Email}}</div>
             <div class="footer-text">If you didn't create this account, please ignore this email.</div>
             <div class="footer-links">
-                <a href="{{.ServerURL}}/help" class="footer-link">Help Center</a>
-                <a href="{{.ServerURL}}/privacy" class="footer-link">Privacy Policy</a>
-                <a href="{{.ServerURL}}/terms" class="footer-link">Terms of Service</a>
+                <a href="{{.FrontendURL}}/help" class="footer-link">Help Center</a>
+                <a href="{{.FrontendURL}}/privacy" class="footer-link">Privacy Policy</a>
+                <a href="{{.FrontendURL}}/terms" class="footer-link">Terms of Service</a>
             </div>
         </div>
     </div>
@@ -78,9 +78,9 @@ We're absolutely thrilled to welcome you to the JeanPay family! You've just join
 
 🔒 Your security is our priority. We use advanced encryption and multi-factor authentication to keep your account safe.
 
-To activate your account, please visit: {{.ServerURL}}/activate?token={{.Token}}
+To activate your account, please visit: {{.ServerURL}}/api/auth/verify-email?token={{.Token}}
 
-Need help getting started? Our support team is here to assist you every step of the way. Simply reply to this email or visit our help center.
+Need help getting started? Our support team is here to assist you every step of the way. Simply reply to this email or visit our help center at {{.FrontendURL}}/help.
 
 Best regards,
 The JeanPay Team

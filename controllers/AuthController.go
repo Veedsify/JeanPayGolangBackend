@@ -3,6 +3,8 @@ package controllers
 import (
 	"fmt"
 	"net/http"
+	"net/url"
+	"os"
 
 	"github.com/Veedsify/JeanPayGoBackend/libs"
 	"github.com/Veedsify/JeanPayGoBackend/services"
@@ -80,22 +82,63 @@ func LoginUserEndpoint(c *gin.Context) {
 
 }
 
-//	func VerifyUserEndpoint(c *gin.Context) {
-//		var email = c.Param("email")
-//		var token = c.Param("token")
-//
-//		if email == "" || token == "" {
-//			c.JSON(http.StatusBadRequest, gin.H{"message": "email and token are required", "error": true})
-//			return
-//		}
-//
-//		if err := services.VerifyUser(token, email); err != nil {
-//			c.JSON(http.StatusUnauthorized, gin.H{"message": err.Error(), "error": true})
-//			return
-//		}
-//
-//		c.JSON(http.StatusOK, gin.H{"message": "User verified successfully", "error": false})
-//	}
+func VerifyUserEndpoint(c *gin.Context) {
+	token := c.Query("token")
+
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   true,
+			"message": "Verification token is required",
+		})
+		return
+	}
+
+	err := services.VerifyEmailToken(token)
+	if err != nil {
+		// Redirect to frontend with error parameter
+		frontendURL := os.Getenv("FRONTEND_URL")
+		if frontendURL == "" {
+			frontendURL = "http://localhost:3000"
+		}
+		c.Redirect(http.StatusFound, fmt.Sprintf("%s/login?verified=false&error=%s", frontendURL, url.QueryEscape(err.Error())))
+		return
+	}
+
+	// Redirect to frontend login page with success message
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:3000"
+	}
+	c.Redirect(http.StatusFound, fmt.Sprintf("%s/login?verified=true", frontendURL))
+}
+
+func ResendEmailVerificationEndpoint(c *gin.Context) {
+	var request struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   true,
+			"message": "Valid email is required",
+		})
+		return
+	}
+
+	err := services.ResendEmailVerification(request.Email)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   true,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"error":   false,
+		"message": "Verification email sent successfully",
+	})
+}
 func CreatePasswordResetLinkEndpoint(c *gin.Context) {
 	var PassWordReset struct {
 		Email string `json:"email"`
