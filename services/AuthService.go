@@ -14,6 +14,7 @@ import (
 	"github.com/Veedsify/JeanPayGoBackend/types"
 	"github.com/Veedsify/JeanPayGoBackend/utils"
 	"github.com/google/uuid"
+	"github.com/markbates/goth"
 	"gorm.io/gorm"
 )
 
@@ -469,4 +470,81 @@ func RefreshToken(refreshToken string) (*libs.TokenPair, error) {
 	}
 
 	return newToken, nil
+}
+
+func GoogleAuthLogin(user goth.User) (*libs.TokenPair, string, error) {
+	if user.Email == "" {
+		return &libs.TokenPair{}, "login", errors.New("unable to get email from Google account")
+	}
+
+	var dbUser models.User
+	err := database.DB.Where("email = ?", user.Email).First(&dbUser).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			ngnId, ghsId := libs.GenerateUniqueWalletId()
+			createUser := models.User{
+				Email:         user.Email,
+				FirstName:     user.FirstName,
+				LastName:      user.LastName,
+				IsAdmin:       false,
+				IsVerified:    true,
+				IsBlocked:     false,
+				GoogleCloudId: user.UserID,
+				UserID:        uuid.New().ID(),
+				Country:       "NGN",
+				Setting: models.Setting{
+					DefaultCurrency: models.DefaultCurrency("NGN"),
+				},
+				Wallet: []models.Wallet{
+					{
+						Currency: "NGN",
+						Balance:  0,
+						WalletID: ngnId,
+					},
+					{
+						Currency: "GHS",
+						Balance:  0,
+						WalletID: ghsId,
+					},
+				}}
+
+			if err := database.DB.Create(&createUser).Error; err != nil {
+				return &libs.TokenPair{}, "login", errors.New("sorry this account already exists")
+			}
+			dbUser = createUser
+		} else {
+			return &libs.TokenPair{}, "login", err
+		}
+	}
+
+	if dbUser.IsBlocked {
+		return &libs.TokenPair{}, "login", errors.New("your account has been disabled, please contact support")
+	}
+
+	if dbUser.GoogleCloudId != user.UserID {
+		return &libs.TokenPair{}, "login", errors.New("this account was not registered with Google, please use your email and password to login")
+	}
+
+	loggedInUser := &libs.UserInfo{
+		ID:      dbUser.ID,
+		UserID:  dbUser.UserID,
+		Email:   dbUser.Email,
+		IsAdmin: dbUser.IsAdmin,
+	}
+
+	jwtService, err := libs.NewJWTServiceFromEnv()
+	if err != nil {
+		log.Fatal(err)
+		return &libs.TokenPair{}, "login", err
+	}
+
+	token, err := jwtService.GenerateTokenPair(loggedInUser)
+
+	if err != nil {
+		return &libs.TokenPair{}, "login", err
+	}
+
+	activity := fmt.Sprintf(constants.NewLoginActivityLog, libs.FormatDate(time.Now()))
+	jobs.NewActivityJobClient().EnqueueNewActivity(dbUser.ID, activity)
+	return token, "login", nil
 }

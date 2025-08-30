@@ -16,14 +16,11 @@ func AuthMiddleware(jwtService *libs.JWTService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenString, err := jwtService.ExtractTokenFromHeader(c.GetHeader("Authorization"))
 		if err != nil {
-			tokenString, err = c.Cookie("token")
+			tokenString, err = c.Cookie("access_token")
 			if err != nil {
-				tokenString, err = c.Cookie("admin_token")
-				if err != nil {
-					c.JSON(http.StatusUnauthorized, gin.H{"error": true, "message": "no token provided"})
-					c.Abort()
-					return
-				}
+				c.JSON(http.StatusUnauthorized, gin.H{"error": true, "message": "no token provided"})
+				c.Abort()
+				return
 			}
 		}
 

@@ -14,6 +14,7 @@ import (
 
 func init() {
 	go initializers.InitializeQueueServer()
+	initializers.InitializeGoogleAuth()
 	database.InitDB()
 }
 
@@ -23,6 +24,8 @@ func main() {
 		libs.GetEnvOrDefault("ADMIN_URL", "http://localhost:3001"),
 		"http://app.test:3000",
 		"http://app.test:3001",
+		"http://127.0.0.1:3000",
+		"http://127.0.0.1:3001",
 	}
 	router := gin.Default()
 	router.Use(cors.New(cors.Config{
@@ -33,6 +36,9 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "OK"})
+	})
 	routes.ApiRoutes(router)
 	// Print all routes before running
 	router.Run() // listen and serve on 0.0.0.0:8080

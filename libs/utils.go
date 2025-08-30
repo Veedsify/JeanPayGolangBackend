@@ -468,21 +468,20 @@ func SHA256(value string) string {
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
-func SetCookie(c *gin.Context, name string, value string, maxAge int64, path string) error {
-	if name == "" || value == "" {
-		return errors.New("cookie name and value cannot be empty")
+func SetCookie(c *gin.Context, name string, value string, maxAge int) error {
+	if name == "" {
+		return errors.New("cookie name cannot be empty")
 	}
-
-	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     name,
-		Value:    value,
-		Path:     path,
-		Expires:  time.Now().UTC().Add(time.Duration(maxAge) * time.Minute), // correct future time
-		MaxAge:   3600,
-		HttpOnly: false,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
-	})
-
+	// Allow empty value if maxAge <= 0 (for deletion)
+	if value == "" && maxAge > 0 {
+		return errors.New("cookie value cannot be empty")
+	}
+	host := c.Request.Host
+	domain := strings.Split(host, ":")[0] // Remove port if present
+	if domain == "localhost" || domain == "127.0.0.1" {
+		domain = ""
+	}
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(name, value, maxAge, "/", domain, false, true)
 	return nil
 }

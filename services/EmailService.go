@@ -200,7 +200,7 @@ func (es *EmailService) loadDefaultTemplates() {
 	// --- Welcome Template ---
 	es.templates["welcome"] = &EmailTemplate{
 		Name:        "welcome",
-		Subject:     "🎉 Welcome to JeanPay - Your Premium Payment Experience Awaits!",
+		Subject:     "🎉 Welcome to JeanPay",
 		HTMLContent: templates.WelcomeTemplate(),
 		TextContent: templates.WelcomePlainTextTemplate(),
 	}

@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/Veedsify/JeanPayGoBackend/constants"
+	"github.com/Veedsify/JeanPayGoBackend/controllers"
 	"github.com/Veedsify/JeanPayGoBackend/libs"
 	"github.com/Veedsify/JeanPayGoBackend/middlewares"
 	"github.com/Veedsify/JeanPayGoBackend/routes/endpoints"
@@ -16,6 +17,8 @@ func ApiRoutes(router *gin.Engine) {
 	public := v1.Group("/")
 	{
 		endpoints.AuthRoutes(public)
+		public.GET(constants.ConvertBase+constants.ConvertRates, controllers.GetExchangeRatesEndpoint)
+		public.GET(constants.SettingsBase+constants.SettingsPlatform, controllers.GetPlatformSettingsEndpoint)
 	}
 	jwtService, err := libs.NewJWTServiceFromEnv()
 	if err != nil {

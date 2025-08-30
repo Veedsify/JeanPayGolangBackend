@@ -642,3 +642,20 @@ func SettingsWalletEndpoint(c *gin.Context) {
 		"message": "Wallet settings updated successfully",
 	})
 }
+
+func GetPlatformSettingsEndpoint(c *gin.Context) {
+	settings, err := services.GetPlatformSettings()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   true,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"error":   false,
+		"message": "Platform settings retrieved successfully",
+		"data":    settings,
+	})
+}

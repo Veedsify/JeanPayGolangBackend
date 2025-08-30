@@ -75,11 +75,10 @@ func NewQueueServer(config *QueueConfig) *QueueServer {
 
 	// Configure server options
 	serverConfig := asynq.Config{
-		Concurrency:     config.Concurrency,
-		Queues:          config.Queues,
-		StrictPriority:  config.StrictPriority,
-		ShutdownTimeout: config.ShutdownTimeout,
-
+		Concurrency:      config.Concurrency,
+		Queues:           config.Queues,
+		StrictPriority:   config.StrictPriority,
+		ShutdownTimeout:  config.ShutdownTimeout,
 		LogLevel:         config.LogLevel,
 		RetryDelayFunc:   config.RetryDelayFunc,
 		GroupGracePeriod: config.GroupGracePeriod,

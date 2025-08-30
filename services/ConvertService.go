@@ -188,17 +188,14 @@ func CalculateConversion(req types.ConversionRequest) (*types.CalculationRespons
 		return nil, fmt.Errorf("failed to get exchange rate: %w", err)
 	}
 
-	// Calculate conversion amounts
-	fee := utils.CalculateFee(req.Amount, 2.0) // 2% fee
-	amountAfterFee := req.Amount - fee
-	convertedAmount := utils.RoundCurrency(amountAfterFee * rate)
+	newAmount := rate * req.Amount
 
+	// Calculate conversion amounts
+	convertedAmount := utils.RoundCurrency(newAmount)
 	return &types.CalculationResponse{
 		FromCurrency:     req.FromCurrency,
 		ToCurrency:       req.ToCurrency,
 		OriginalAmount:   utils.RoundCurrency(req.Amount),
-		Fee:              utils.RoundCurrency(fee),
-		AmountAfterFee:   utils.RoundCurrency(amountAfterFee),
 		ConvertedAmount:  convertedAmount,
 		Rate:             rate,
 		EstimatedArrival: "Instant",

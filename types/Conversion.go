@@ -94,8 +94,6 @@ type CalculationResponse struct {
 	FromCurrency     string  `json:"fromCurrency"`
 	ToCurrency       string  `json:"toCurrency"`
 	OriginalAmount   float64 `json:"originalAmount"`
-	Fee              float64 `json:"fee"`
-	AmountAfterFee   float64 `json:"amountAfterFee"`
 	ConvertedAmount  float64 `json:"convertedAmount"`
 	Rate             float64 `json:"rate"`
 	EstimatedArrival string  `json:"estimatedArrival"`

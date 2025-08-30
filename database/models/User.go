@@ -28,6 +28,7 @@ type User struct {
 	UserID             uint32           `json:"user_id"`
 	Country            UserCountry      `json:"country"`
 	IsTwoFactorEnabled bool             `json:"is_two_factor_enabled"`
+	GoogleCloudId      string           `json:"google_cloud_id" gorm:"unique;default:null"`
 	UpdatedAt          time.Time        `json:"updated_at"`
 	Setting            Setting          `json:"setting" gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	Transactions       []Transaction    `json:"transactions" gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`

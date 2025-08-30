@@ -19,7 +19,6 @@ func WelcomeTemplate() string {
                 <img src="https://res.cloudinary.com/ds2hdlfvc/image/upload/v1755948663/logo_nf44qm.png" alt="JeanPay Logo" />
             </div>
             <h1>Welcome to JeanPay</h1>
-            <p>Your premium payment experience starts here</p>
         </div>
         <div class="content">
             <div class="greeting">Hello {{.UserName}}! 👋</div>
@@ -29,10 +28,10 @@ func WelcomeTemplate() string {
             <div class="card">
                 <h3>🚀 What You Can Do</h3>
                 <ul>
-                    <li>Send and receive money instantly with bank-grade security</li>
+                    <li>Send and receive money from Ghana, Nigeria, Togo & Ivory Coast, through Momo or Bank Account</li>
                     <li>Track all your transactions in real-time with detailed insights</li>
                     <li>Manage multiple wallets and currencies effortlessly</li>
-                    <li>Access premium customer support 24/7</li>
+                    <li>Access customer support 24/7</li>
                 </ul>
             </div>
             <div class="highlight">
@@ -65,13 +64,13 @@ func WelcomeTemplate() string {
 }
 
 func WelcomePlainTextTemplate() string {
-	return `🎉 Welcome to JeanPay - Your Premium Payment Experience Awaits!
+	return `🎉 Welcome to JeanPay 
 Hello {{.UserName}}!
 
 We're absolutely thrilled to welcome you to the JeanPay family! You've just joined thousands of users who trust us with their most important financial transactions.
 
 🚀 What You Can Do:
-• Send and receive money instantly with bank-grade security
+• Send and receive money from Ghana, Nigeria, Togo & Ivory Coast, through Momo or Bank Account
 • Track all your transactions in real-time with detailed insights
 • Manage multiple wallets and currencies effortlessly
 • Access premium customer support 24/7

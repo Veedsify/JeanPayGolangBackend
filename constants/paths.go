@@ -20,6 +20,8 @@ const (
 	AuthResetPassword       = "/reset-password"
 	AuthVerifyOtp           = "/verify-otp"
 	AuthRefreshToken        = "/refresh-token"
+	AuthGoogle              = "/google"
+	AuthGoogleCallback      = "/google/callback"
 
 	// User paths
 	UserBase     = "/user"
@@ -90,6 +92,7 @@ const (
 	SettingsPreferences      = "/preferences"
 	SettingsProfile          = "/profile"
 	SettingsSecurity         = "/security"
+	SettingsPlatform         = "/platform"
 	SettingsNotifications    = "/notifications"
 	SettingsTwoFactor        = "/securitytwo-factor/qr"
 	SettingsTwoFactorEnable  = "/security/two-factor/enable"

@@ -81,7 +81,7 @@ func NewJWTServiceFromEnv() (*JWTService, error) {
 	config := &JWTConfig{
 		SecretKey:            []byte(secretKey),
 		RefreshSecretKey:     []byte(refreshSecretKey),
-		AccessTokenDuration:  time.Second * time.Duration(accessTokenDuration),
+		AccessTokenDuration:  time.Minute * time.Duration(accessTokenDuration),
 		RefreshTokenDuration: time.Minute * time.Duration(refreshTokenDuration),
 		Issuer:               issuer,
 	}

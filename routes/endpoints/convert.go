@@ -9,7 +9,6 @@ import (
 func ConvertRoutes(router *gin.RouterGroup) {
 	convert := router.Group(constants.ConvertBase)
 	{
-		convert.GET(constants.ConvertRates, controllers.GetExchangeRatesEndpoint)
 		convert.POST(constants.ConvertCalculate, controllers.CalculateConversionEndpoint)
 		convert.POST(constants.ConvertExchange, controllers.ExecuteConversionEndpoint)
 		convert.GET(constants.ConvertHistory, controllers.GetConversionHistoryEndpoint)
