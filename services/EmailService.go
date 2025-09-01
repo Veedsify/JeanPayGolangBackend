@@ -205,6 +205,13 @@ func (es *EmailService) loadDefaultTemplates() {
 		TextContent: templates.WelcomePlainTextTemplate(),
 	}
 
+	es.templates["general_email"] = &EmailTemplate{
+		Name:        "genaral_email",
+		Subject:     "New Contact Request",
+		HTMLContent: templates.GeneralEmailTemplate(),
+		TextContent: templates.GeneralEmailPlainTextTemplate(),
+	}
+
 	// --- Password Reset Template ---
 	es.templates["password_reset"] = &EmailTemplate{
 		Name:        "password_reset",

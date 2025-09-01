@@ -149,6 +149,16 @@ const (
 	AdminTransactionsFailed  = "/failed"
 	AdminTransactionsNotes   = "/:id/notes"
 
+	// Admin payment accounts paths
+	AdminPaymentAccountsBase   = "/payment-accounts"
+	AdminPaymentAccountsAll    = "/all"
+	AdminPaymentAccountsCreate = "/create"
+	AdminPaymentAccountsUpdate = "/:id"
+	AdminPaymentAccountsDelete = "/:id"
+	AdminPaymentAccountsToggle = "/:id/toggle"
+	AdminPaymentAccountsGet    = "/:id"
+	AdminPaymentAccountsActive = "/active"
+
 	// Admin logs paths
 	AdminLogsBase          = "/logs"
 	AdminLogsAll           = "/all"
@@ -159,6 +169,8 @@ const (
 	WebhooksBase     = "/webhooks"
 	WebhooksPaystack = "/paystack"
 	WebhooksMomo     = "/momo"
+
+	ContactRoute = "/contact"
 )
 
 // GetFullPath combines base API path with specific path

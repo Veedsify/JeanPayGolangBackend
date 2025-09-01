@@ -42,6 +42,8 @@ func autoMigrate(db *gorm.DB) {
 		&models.WithdrawMethod{},
 		&models.SavedRecipient{},
 		&models.PlatformSetting{},
+		&models.PaymentAccount{},
+		&models.Contact{},
 	)
 
 	// Seed admin user if it doesn't exist

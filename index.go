@@ -7,6 +7,7 @@ import (
 	"github.com/Veedsify/JeanPayGoBackend/initializers"
 	"github.com/Veedsify/JeanPayGoBackend/libs"
 	"github.com/Veedsify/JeanPayGoBackend/routes"
+	"github.com/Veedsify/JeanPayGoBackend/services"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	_ "github.com/joho/godotenv/autoload"
@@ -40,6 +41,7 @@ func main() {
 		c.JSON(200, gin.H{"status": "OK"})
 	})
 	routes.ApiRoutes(router)
+	services.CreateTransactionPDF()
 	// Print all routes before running
 	router.Run() // listen and serve on 0.0.0.0:8080
 }

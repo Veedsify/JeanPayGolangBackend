@@ -47,5 +47,14 @@ func AdminRoutes(admin *gin.RouterGroup) {
 		// Admin platform settings routes
 		admin.GET(constants.AdminSettingsBase+constants.AdminSettingsGet, controllers.AdminGetPlatformSettings)
 		admin.PATCH(constants.AdminSettingsBase+constants.AdminSettingsUpdate, controllers.AdminUpdatePlatformSettings)
+
+		// Admin payment accounts management routes
+		admin.POST(constants.AdminPaymentAccountsBase+constants.AdminPaymentAccountsAll, controllers.GetPaymentAccounts)
+		admin.POST(constants.AdminPaymentAccountsBase+constants.AdminPaymentAccountsCreate, controllers.CreatePaymentAccount)
+		admin.PATCH(constants.AdminPaymentAccountsBase+constants.AdminPaymentAccountsUpdate, controllers.UpdatePaymentAccount)
+		admin.DELETE(constants.AdminPaymentAccountsBase+constants.AdminPaymentAccountsDelete, controllers.DeletePaymentAccount)
+		admin.PATCH(constants.AdminPaymentAccountsBase+constants.AdminPaymentAccountsToggle, controllers.TogglePaymentAccountStatus)
+		admin.GET(constants.AdminPaymentAccountsBase+constants.AdminPaymentAccountsGet, controllers.GetPaymentAccountByID)
+		admin.GET(constants.AdminPaymentAccountsBase+constants.AdminPaymentAccountsActive, controllers.GetActivePaymentAccounts)
 	}
 }
