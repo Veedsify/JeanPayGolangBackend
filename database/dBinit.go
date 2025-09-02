@@ -14,8 +14,8 @@ var USER string = libs.GetEnvOrDefault("DB_USER", "postgres")
 var PASSWORD string = libs.GetEnvOrDefault("DB_PASSWORD", "1234")
 var NAME string = libs.GetEnvOrDefault("DB_NAME", "jeanpay")
 var PORT string = libs.GetEnvOrDefault("DB_PORT", "5432")
-var AdminEmail = libs.GetStringOrDefault("ADMIN_DEFAULT_EMAIL", "")
-var AdminPassword = libs.GetStringOrDefault("ADMIN_DEFAULT_PASSWORD", "")
+var AdminEmail = libs.GetEnvOrDefault("ADMIN_DEFAULT_EMAIL", "")
+var AdminPassword = libs.GetEnvOrDefault("ADMIN_DEFAULT_PASSWORD", "")
 
 func InitDB() {
 	dsn := "host=" + HOST + " user=" + USER + " password=" + PASSWORD + " dbname=" + NAME + " port=" + PORT + " sslmode=disable"
@@ -61,7 +61,7 @@ func autoMigrate(db *gorm.DB) {
 			LastName:           "User",
 			Email:              AdminEmail,
 			Username:           "admin",
-			Password:           hashedPassword, 
+			Password:           hashedPassword,
 			IsAdmin:            true,
 			IsVerified:         true,
 			IsTwoFactorEnabled: false,
