@@ -75,7 +75,7 @@ func NewQueueServer(config *QueueConfig) *QueueServer {
 		Addr:     config.RedisAddr,
 		Username: "default",
 		Password: config.RedisPassword,
-		DB:       config.RedisDB,
+		DB:       0,
 	}
 
 	// Configure server options
