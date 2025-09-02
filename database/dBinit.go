@@ -48,7 +48,7 @@ func autoMigrate(db *gorm.DB) {
 
 	// Seed admin user if it doesn't exist
 	var count int64
-	db.Model(&models.User{}).Where("email = ?", "admin@jeanpay.africa").Count(&count)
+	db.Model(&models.User{}).Where("email = ?", "anyomij3@gmail.com").Count(&count)
 	hashedPassword, err := libs.HashPassword("password")
 	if err != nil {
 		panic("failed to hash password")

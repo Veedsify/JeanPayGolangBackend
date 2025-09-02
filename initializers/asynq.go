@@ -73,6 +73,7 @@ func NewQueueServer(config *QueueConfig) *QueueServer {
 	// Create Redis client options
 	redisOpt := asynq.RedisClientOpt{
 		Addr:     config.RedisAddr,
+		Username: "default",
 		Password: config.RedisPassword,
 		DB:       config.RedisDB,
 	}
