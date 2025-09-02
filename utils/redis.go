@@ -9,9 +9,10 @@ import (
 
 func NewRedisClient() *redis.Client {
 	addr := os.Getenv("REDIS_ADDR")
+	passWrd := os.Getenv("REDIS_PASSWORD")
 	return redis.NewClient(&redis.Options{
 		Addr:     addr,
-		Password: "",
+		Password: passWrd,
 		DB:       0,
 	})
 }

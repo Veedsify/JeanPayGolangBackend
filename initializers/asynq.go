@@ -19,6 +19,8 @@ var redisAddr = libs.GetEnvOrDefault("REDIS_ADDR", "127.0.0.1:6379")
 // QueueConfig holds the configuration for the queue server
 type QueueConfig struct {
 	RedisAddr        string
+	RedisPassword    string
+	RedisDB          int
 	Concurrency      int
 	StrictPriority   bool
 	ShutdownTimeout  time.Duration
@@ -42,6 +44,8 @@ type QueueServer struct {
 func NewQueueConfig() *QueueConfig {
 	return &QueueConfig{
 		RedisAddr:        libs.GetEnvOrDefault("REDIS_ADDR", "127.0.0.1:6379"),
+		RedisPassword:    libs.GetEnvOrDefault("REDIS_PASSWORD", ""),
+		RedisDB:          0,
 		Concurrency:      libs.GetEnvIntOrDefault("QUEUE_CONCURRENCY", 10),
 		StrictPriority:   libs.GetEnvBoolOrDefault("QUEUE_STRICT_PRIORITY", false),
 		ShutdownTimeout:  time.Duration(libs.GetEnvIntOrDefault("QUEUE_SHUTDOWN_TIMEOUT", 30)) * time.Second,
@@ -69,8 +73,8 @@ func NewQueueServer(config *QueueConfig) *QueueServer {
 	// Create Redis client options
 	redisOpt := asynq.RedisClientOpt{
 		Addr:     config.RedisAddr,
-		Password: libs.GetEnvOrDefault("REDIS_PASSWORD", ""),
-		DB:       libs.GetEnvIntOrDefault("REDIS_DB", 0),
+		Password: config.RedisPassword,
+		DB:       config.RedisDB,
 	}
 
 	// Configure server options
