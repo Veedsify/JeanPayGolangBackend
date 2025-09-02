@@ -25,7 +25,7 @@ func ContactInformation(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   true,
-			"message": "Failed To Send Contact Message At This Time",
+			"message": fmt.Sprintf("Failed To Send Contact Message At This Time %v", err.Error()),
 		})
 		return
 	}

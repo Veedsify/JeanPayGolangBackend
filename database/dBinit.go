@@ -57,7 +57,7 @@ func autoMigrate(db *gorm.DB) {
 		db.Create(&models.User{
 			FirstName:          "Admin",
 			LastName:           "User",
-			Email:              "admin@jeanpay.africa",
+			Email:              "anyomij3@gmail.com",
 			Username:           "admin",
 			Password:           hashedPassword, // 🔴 don’t store plaintext passwords!
 			IsAdmin:            true,
