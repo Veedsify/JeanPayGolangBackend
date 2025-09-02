@@ -27,6 +27,7 @@ func ContactInformation(c *gin.Context) {
 			"error":   true,
 			"message": "Failed To Send Contact Message At This Time",
 		})
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
