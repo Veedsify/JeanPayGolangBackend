@@ -2,7 +2,6 @@ package initializers
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -70,8 +69,6 @@ func NewQueueServer(config *QueueConfig) *QueueServer {
 	if config == nil {
 		config = NewQueueConfig()
 	}
-
-	fmt.Println(config)
 
 	// Create Redis client options
 	redisOpt := asynq.RedisClientOpt{

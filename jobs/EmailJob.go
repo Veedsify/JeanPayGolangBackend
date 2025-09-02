@@ -16,6 +16,7 @@ import (
 )
 
 var redisAddr = libs.GetEnvOrDefault("REDIS_ADDR", "127.0.0.1:6379")
+var redisPassWrd = libs.GetEnvOrDefault("REDIS_PASSWORD", "")
 
 // Email job types
 const (
@@ -82,7 +83,12 @@ type EmailJobClient struct {
 
 // NewEmailJobClient creates a new email job client
 func NewEmailJobClient() *EmailJobClient {
-	client := asynq.NewClient(asynq.RedisClientOpt{Addr: redisAddr})
+	client := asynq.NewClient(asynq.RedisClientOpt{
+		Addr:     redisAddr,
+		Username: "default",
+		Password: redisPassWrd,
+		DB:       0,
+	})
 	return &EmailJobClient{
 		client: client,
 	}

@@ -14,6 +14,8 @@ var USER string = libs.GetEnvOrDefault("DB_USER", "postgres")
 var PASSWORD string = libs.GetEnvOrDefault("DB_PASSWORD", "1234")
 var NAME string = libs.GetEnvOrDefault("DB_NAME", "jeanpay")
 var PORT string = libs.GetEnvOrDefault("DB_PORT", "5432")
+var AdminEmail = libs.GetStringOrDefault("ADMIN_DEFAULT_EMAIL", "")
+var AdminPassword = libs.GetStringOrDefault("ADMIN_DEFAULT_PASSWORD", "")
 
 func InitDB() {
 	dsn := "host=" + HOST + " user=" + USER + " password=" + PASSWORD + " dbname=" + NAME + " port=" + PORT + " sslmode=disable"
@@ -48,8 +50,8 @@ func autoMigrate(db *gorm.DB) {
 
 	// Seed admin user if it doesn't exist
 	var count int64
-	db.Model(&models.User{}).Where("email = ?", "anyomij3@gmail.com").Count(&count)
-	hashedPassword, err := libs.HashPassword("password")
+	db.Model(&models.User{}).Where("email = ?", AdminEmail).Count(&count)
+	hashedPassword, err := libs.HashPassword(AdminPassword)
 	if err != nil {
 		panic("failed to hash password")
 	}
@@ -57,9 +59,9 @@ func autoMigrate(db *gorm.DB) {
 		db.Create(&models.User{
 			FirstName:          "Admin",
 			LastName:           "User",
-			Email:              "anyomij3@gmail.com",
+			Email:              AdminEmail,
 			Username:           "admin",
-			Password:           hashedPassword, // 🔴 don’t store plaintext passwords!
+			Password:           hashedPassword, 
 			IsAdmin:            true,
 			IsVerified:         true,
 			IsTwoFactorEnabled: false,
