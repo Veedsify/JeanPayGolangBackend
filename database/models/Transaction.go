@@ -57,6 +57,7 @@ type Transaction struct {
 	Direction          TransactionDirection `json:"direction" gorm:"not null"`
 	Description        string               `json:"description" gorm:"default:''"`
 	User               User                 `json:"user" gorm:"not null"`
+	CurrentRate        float64              `json:"current_rate" gorm:"null"`
 	TransactionDetails TransactionDetails   `json:"transaction_details" gorm:"foreignKey:TransactionID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 }
 

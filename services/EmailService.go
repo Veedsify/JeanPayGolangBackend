@@ -96,6 +96,7 @@ var (
 	// SERVER is the base URL for the application
 	SERVER   = GetEnvOrDefault("SERVER_URL", "http://localhost:8080")
 	FRONTEND = GetEnvOrDefault("FRONTEND_URL", "http://localhost:3000")
+	ADMIN    = GetEnvOrDefault("ADMIN_URL", "http://localhost:3001")
 
 	// emailRegex is used for basic email validation
 	emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
@@ -242,6 +243,22 @@ func (es *EmailService) loadDefaultTemplates() {
 		Subject:     "❌ {{.TransactionTypeDisplay}} Rejected - JeanPay",
 		HTMLContent: templates.TransactionRejectedTemplate(),
 		TextContent: templates.TransactionRejectedPlainTextTemplate(),
+	}
+
+	// --- New Transaction Admin Template ---
+	es.templates["new_transaction_admin"] = &EmailTemplate{
+		Name:        "new_transaction_admin",
+		Subject:     "🔔 New {{.TransactionTypeDisplay}} Transaction - {{.TransactionID}}",
+		HTMLContent: templates.NewTransactionAdminTemplate(),
+		TextContent: templates.NewTransactionAdminPlainTextTemplate(),
+	}
+
+	// --- New Deposit Admin Template ---
+	es.templates["new_deposit_admin"] = &EmailTemplate{
+		Name:        "new_deposit_admin",
+		Subject:     "💰 New Deposit Transaction - {{.TransactionID}}",
+		HTMLContent: templates.NewDepositAdminTemplate(),
+		TextContent: templates.NewDepositAdminPlainTextTemplate(),
 	}
 }
 
@@ -523,6 +540,47 @@ func (es *EmailService) SendTransactionRejectedEmail(to string, userName string,
 	}
 
 	return es.SendTemplatedEmail([]string{to}, "transaction_rejected", data)
+}
+
+// SendNewTransactionAdminEmail sends a new transaction notification to admins
+func (es *EmailService) SendNewTransactionAdminEmail(to []string, userName string, userEmail string, transaction models.Transaction) error {
+	data := map[string]any{
+		"UserName":        userName,
+		"UserEmail":       userEmail,
+		"TransactionID":   transaction.TransactionID,
+		"TransactionType": transaction.TransactionType,
+		"Amount":          utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency),
+		"Date":            transaction.CreatedAt.Format("January 2, 2006 at 3:04 PM"),
+		"ServerURL":       ADMIN,
+		"RecipientName":   transaction.TransactionDetails.RecipientName,
+		"BankName":        transaction.TransactionDetails.BankName,
+		"AccountNumber":   transaction.TransactionDetails.AccountNumber,
+		"PhoneNumber":     transaction.TransactionDetails.PhoneNumber,
+		"Network":         transaction.TransactionDetails.Network,
+		"FromAmount":      utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency),
+		"ToAmount":        utils.FormatCurrency(transaction.TransactionDetails.ToAmount, transaction.TransactionDetails.ToCurrency),
+		"FromCurrency":    transaction.TransactionDetails.FromCurrency,
+		"ToCurrency":      transaction.TransactionDetails.ToCurrency,
+		"ExchangeRate":    fmt.Sprintf("1 %s = %.4f %s", transaction.TransactionDetails.FromCurrency, transaction.TransactionDetails.ToAmount/transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.ToCurrency),
+	}
+
+	return es.SendTemplatedEmail(to, "new_transaction_admin", data)
+}
+
+// SendNewDepositAdminEmail sends a new deposit notification to admins
+func (es *EmailService) SendNewDepositAdminEmail(to []string, userName string, userEmail string, transaction models.Transaction) error {
+	data := map[string]any{
+		"UserName":      userName,
+		"UserEmail":     userEmail,
+		"TransactionID": transaction.TransactionID,
+		"Amount":        utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency),
+		"Currency":      transaction.TransactionDetails.FromCurrency,
+		"Date":          transaction.CreatedAt.Format("January 2, 2006 at 3:04 PM"),
+		"ServerURL":     ADMIN,
+		"Description":   transaction.Description,
+	}
+
+	return es.SendTemplatedEmail(to, "new_deposit_admin", data)
 }
 
 // renderTemplate renders a template with the given data

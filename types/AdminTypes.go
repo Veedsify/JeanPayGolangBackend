@@ -64,6 +64,7 @@ type TransactionWithUser struct {
 	Description     string                      `json:"description"`
 	CreatedAt       time.Time                   `json:"created_at"`
 	UpdatedAt       time.Time                   `json:"updated_at"`
+	CurrentRate     float64                     `json:"current_rate"`
 	PaymentType     models.PaymentType          `json:"payment_type"`
 	User            *UserBasicInfo              `json:"user,omitempty"`
 }

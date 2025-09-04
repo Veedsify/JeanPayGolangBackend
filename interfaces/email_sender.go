@@ -30,6 +30,12 @@ type EmailSender interface {
 
 	// SendTransactionRejectedEmail sends a transaction rejected email
 	SendTransactionRejectedEmail(to string, userName string, transaction models.Transaction, reason string) error
+
+	// SendNewTransactionAdminEmail sends a new transaction notification to admins
+	SendNewTransactionAdminEmail(to []string, userName string, userEmail string, transaction models.Transaction) error
+
+	// SendNewDepositAdminEmail sends a new deposit notification to admins
+	SendNewDepositAdminEmail(to []string, userName string, userEmail string, transaction models.Transaction) error
 }
 
 // EmailJobHandler defines the interface for handling email jobs

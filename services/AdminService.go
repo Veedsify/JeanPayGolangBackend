@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 
@@ -14,6 +15,90 @@ import (
 	"github.com/Veedsify/JeanPayGoBackend/utils"
 	"gorm.io/gorm"
 )
+
+// isValidEmail validates an email address using regex
+func isValidEmail(email string) bool {
+	if len(email) > 254 {
+		return false
+	}
+	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	return emailRegex.MatchString(email)
+}
+
+// GetAdminEmails retrieves all valid admin email addresses
+func GetAdminEmails() ([]string, error) {
+	var admins []models.User
+	if err := database.DB.Where("is_admin = ?", true).Select("email").Find(&admins).Error; err != nil {
+		return nil, fmt.Errorf("failed to get admin emails: %w", err)
+	}
+
+	var validEmails []string
+	for _, admin := range admins {
+		if admin.Email != "" && isValidEmail(admin.Email) {
+			validEmails = append(validEmails, admin.Email)
+		}
+	}
+
+	if len(validEmails) == 0 {
+		return nil, fmt.Errorf("no valid admin email addresses found")
+	}
+
+	return validEmails, nil
+}
+
+// FixInvalidAdminEmails fixes admin users with invalid email addresses
+func FixInvalidAdminEmails(defaultEmail string) error {
+	if defaultEmail != "" && !isValidEmail(defaultEmail) {
+		return fmt.Errorf("provided default email is not valid: %s", defaultEmail)
+	}
+
+	var invalidAdmins []models.User
+	if err := database.DB.Where("is_admin = ? AND (email = '' OR email IS NULL OR LENGTH(email) > 254)", true).Find(&invalidAdmins).Error; err != nil {
+		return fmt.Errorf("failed to find invalid admin users: %w", err)
+	}
+
+	// Also check for invalid email formats
+	var allAdmins []models.User
+	if err := database.DB.Where("is_admin = ?", true).Find(&allAdmins).Error; err != nil {
+		return fmt.Errorf("failed to find all admin users: %w", err)
+	}
+
+	var adminsToFix []models.User
+	for _, admin := range allAdmins {
+		if admin.Email == "" || !isValidEmail(admin.Email) {
+			adminsToFix = append(adminsToFix, admin)
+		}
+	}
+
+	if len(adminsToFix) == 0 {
+		fmt.Println("No invalid admin emails found.")
+		return nil
+	}
+
+	fmt.Printf("Found %d admin users with invalid emails:\n", len(adminsToFix))
+
+	for _, admin := range adminsToFix {
+		if defaultEmail != "" {
+			// Update with default email
+			if err := database.DB.Model(&admin).Update("email", defaultEmail).Error; err != nil {
+				fmt.Printf("Failed to update email for admin user %d: %v\n", admin.ID, err)
+			} else {
+				fmt.Printf("Updated email for admin user %d (%s %s) to: %s\n",
+					admin.ID, admin.FirstName, admin.LastName, defaultEmail)
+			}
+		} else {
+			fmt.Printf("Admin user %d (%s %s) has invalid email: '%s' - needs manual fixing\n",
+				admin.ID, admin.FirstName, admin.LastName, admin.Email)
+		}
+	}
+
+	if defaultEmail == "" {
+		fmt.Println("\nTo fix these automatically, call FixInvalidAdminEmails with a valid default email address.")
+		fmt.Println("Example: FixInvalidAdminEmails(\"admin@yourdomain.com\")")
+	}
+
+	return nil
+}
 
 // GetAdminDashboardStatistics retrieves comprehensive dashboard statistics
 func GetAdminDashboardStatistics() (types.DashboardResponse, error) {
@@ -771,6 +856,7 @@ func GetAdminTransactionDetails(transactionID string) (types.AdminTransactionDet
 			Code:            transaction.Code,
 			PaymentType:     transaction.PaymentType,
 			CreatedAt:       transaction.CreatedAt,
+			CurrentRate:     transaction.CurrentRate,
 			UpdatedAt:       transaction.UpdatedAt,
 			Description:     transaction.Description,
 		},

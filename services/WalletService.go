@@ -65,6 +65,12 @@ func TopUpWallet(userID uint, req types.TopUpRequest) (*types.TopUpResponse, err
 		return nil, fmt.Errorf("failed to access wallets: %w", err)
 	}
 
+	// Get current exchange rate
+	currentExchangeRate, err := GetExchangeRates()
+	if err != nil {
+		return nil, fmt.Errorf("exchange rate not found: %w", err)
+	}
+
 	// Create transaction record
 	now := time.Now()
 	transactionIdx, err := libs.SecureRandomNumber(12)
@@ -95,6 +101,7 @@ func TopUpWallet(userID uint, req types.TopUpRequest) (*types.TopUpResponse, err
 		TransactionType: models.Deposit,
 		Reference:       reference,
 		Direction:       getDepositDirection(req.Currency),
+		CurrentRate:     currentExchangeRate.Rates[string(getDepositDirection(req.Currency))],
 		Description:     fmt.Sprintf("Wallet top-up of %s %s using %s", formattedCurrency, req.Currency, req.PaymentMethod),
 		TransactionDetails: models.TransactionDetails{
 			FromCurrency: req.Currency,
@@ -113,6 +120,22 @@ func TopUpWallet(userID uint, req types.TopUpRequest) (*types.TopUpResponse, err
 	if err := database.DB.Create(&transaction).Error; err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
+
+	// Send email notification to admins for new wallet top-up transaction
+	adminEmails, err := GetAdminEmails()
+	if err != nil {
+		// Log the error but don't fail the transaction
+		fmt.Printf("Warning: Failed to get admin emails for wallet top-up notification: %v\n", err)
+	} else if len(adminEmails) > 0 {
+		// Get full user details for email
+		var fullUser models.User
+		if err := database.DB.First(&fullUser, userID).Error; err == nil {
+			emailClient := jobs.NewEmailJobClient()
+			defer emailClient.Close()
+			emailClient.EnqueueNewDepositAdmin(adminEmails, fullUser.FirstName+" "+fullUser.LastName, fullUser.Email, transaction)
+		}
+	}
+
 	notificationClient := jobs.NewNotificationJobClient()
 	title := "Wallet Top Up"
 	message := fmt.Sprintf("Your wallet top-up of %s %s is being processed", utils.FormatCurrency(req.Amount, req.Currency), req.Currency)
@@ -183,6 +206,13 @@ func WithdrawFromWallet(userID uint, req types.WithdrawRequest) (*types.Withdraw
 		return nil, fmt.Errorf("failed to update wallet balance: %w", err)
 	}
 
+	// Get current exchange rate
+	currentExchangeRate, err := GetExchangeRates()
+	if err != nil {
+		tx.Rollback()
+		return nil, errors.New("exchange rate not found")
+	}
+
 	// Create transaction record
 	now := time.Now()
 	transactionID := uuid.New().String()
@@ -195,7 +225,15 @@ func WithdrawFromWallet(userID uint, req types.WithdrawRequest) (*types.Withdraw
 		TransactionType: "withdrawal",
 		Reference:       reference,
 		Direction:       getWithdrawalDirection(req.Currency),
+		CurrentRate:     currentExchangeRate.Rates[string(getWithdrawalDirection(req.Currency))],
 		Description:     fmt.Sprintf("Withdraw %s %.2f via %s", req.Currency, req.Amount, req.WithdrawalMethod),
+		TransactionDetails: models.TransactionDetails{
+			FromCurrency:    req.Currency,
+			ToCurrency:      req.Currency,
+			FromAmount:      req.Amount,
+			ToAmount:        req.Amount,
+			MethodOfPayment: req.WithdrawalMethod,
+		},
 	}
 
 	if err := tx.Create(&transaction).Error; err != nil {

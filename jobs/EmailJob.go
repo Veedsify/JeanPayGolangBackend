@@ -27,6 +27,8 @@ const (
 	TypeTwoFactorEmail      = "email:two_factor_authentication"
 	TypeTransactionApproved = "email:transaction_approved"
 	TypeTransactionRejected = "email:transaction_rejected"
+	TypeNewTransactionAdmin = "email:new_transaction_admin"
+	TypeNewDepositAdmin     = "email:new_deposit_admin"
 )
 
 // Base email job payload
@@ -74,6 +76,26 @@ type TransactionRejectedPayload struct {
 	TransactionID   string             `json:"transaction_id"`
 	Reason          string             `json:"reason"`
 	Transaction     models.Transaction `json:"transaction"`
+}
+
+type NewTransactionAdminPayload struct {
+	EmailJobPayload
+	UserName        string             `json:"user_name"`
+	UserEmail       string             `json:"user_email"`
+	TransactionType string             `json:"transaction_type"`
+	Amount          string             `json:"amount"`
+	TransactionID   string             `json:"transaction_id"`
+	Transaction     models.Transaction `json:"transaction"`
+}
+
+type NewDepositAdminPayload struct {
+	EmailJobPayload
+	UserName      string             `json:"user_name"`
+	UserEmail     string             `json:"user_email"`
+	Amount        string             `json:"amount"`
+	TransactionID string             `json:"transaction_id"`
+	Currency      string             `json:"currency"`
+	Transaction   models.Transaction `json:"transaction"`
 }
 
 // EmailJobClient handles email job creation and queuing
@@ -327,6 +349,97 @@ func (ejc *EmailJobClient) EnqueueTransactionRejected(email string, userName str
 	return nil
 }
 
+// EnqueueNewTransactionAdmin queues an email to admins about new transfer transaction
+func (ejc *EmailJobClient) EnqueueNewTransactionAdmin(adminEmails []string, userName, userEmail string, transaction models.Transaction) error {
+	payload := NewTransactionAdminPayload{
+		EmailJobPayload: EmailJobPayload{
+			To:         adminEmails,
+			Subject:    fmt.Sprintf("New %s Transaction - %s", getTransactionTypeDisplay(string(transaction.TransactionType)), transaction.TransactionID),
+			TemplateID: "new_transaction_admin",
+			Data: map[string]any{
+				"user_name":        userName,
+				"user_email":       userEmail,
+				"transaction_id":   transaction.TransactionID,
+				"transaction_type": transaction.TransactionType,
+				"amount":           utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency),
+				"recipient_name":   transaction.TransactionDetails.RecipientName,
+				"date":             transaction.CreatedAt.Format("January 2, 2006 at 3:04 PM"),
+			},
+			Priority: "high",
+		},
+		UserName:        userName,
+		UserEmail:       userEmail,
+		TransactionType: string(transaction.TransactionType),
+		Amount:          utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency),
+		TransactionID:   transaction.TransactionID,
+		Transaction:     transaction,
+	}
+
+	task, err := createEmailTask(TypeNewTransactionAdmin, payload)
+	if err != nil {
+		return fmt.Errorf("failed to create new transaction admin email task: %w", err)
+	}
+
+	opts := []asynq.Option{
+		asynq.Queue("high"),
+		asynq.MaxRetry(3),
+		asynq.Timeout(5 * time.Minute),
+	}
+
+	info, err := ejc.client.Enqueue(task, opts...)
+	if err != nil {
+		return fmt.Errorf("failed to enqueue new transaction admin email task: %w", err)
+	}
+
+	log.Printf("Enqueued new transaction admin email task: id=%s queue=%s", info.ID, info.Queue)
+	return nil
+}
+
+// EnqueueNewDepositAdmin queues an email to admins about new deposit transaction
+func (ejc *EmailJobClient) EnqueueNewDepositAdmin(adminEmails []string, userName, userEmail string, transaction models.Transaction) error {
+	payload := NewDepositAdminPayload{
+		EmailJobPayload: EmailJobPayload{
+			To:         adminEmails,
+			Subject:    fmt.Sprintf("New Deposit Transaction - %s", transaction.TransactionID),
+			TemplateID: "new_deposit_admin",
+			Data: map[string]any{
+				"user_name":      userName,
+				"user_email":     userEmail,
+				"transaction_id": transaction.TransactionID,
+				"amount":         utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency),
+				"currency":       transaction.TransactionDetails.FromCurrency,
+				"date":           transaction.CreatedAt.Format("January 2, 2006 at 3:04 PM"),
+			},
+			Priority: "high",
+		},
+		UserName:      userName,
+		UserEmail:     userEmail,
+		Amount:        utils.FormatCurrency(transaction.TransactionDetails.FromAmount, transaction.TransactionDetails.FromCurrency),
+		TransactionID: transaction.TransactionID,
+		Currency:      transaction.TransactionDetails.FromCurrency,
+		Transaction:   transaction,
+	}
+
+	task, err := createEmailTask(TypeNewDepositAdmin, payload)
+	if err != nil {
+		return fmt.Errorf("failed to create new deposit admin email task: %w", err)
+	}
+
+	opts := []asynq.Option{
+		asynq.Queue("high"),
+		asynq.MaxRetry(3),
+		asynq.Timeout(5 * time.Minute),
+	}
+
+	info, err := ejc.client.Enqueue(task, opts...)
+	if err != nil {
+		return fmt.Errorf("failed to enqueue new deposit admin email task: %w", err)
+	}
+
+	log.Printf("Enqueued new deposit admin email task: id=%s queue=%s", info.ID, info.Queue)
+	return nil
+}
+
 // Helper function to get user-friendly transaction type display names
 func getTransactionTypeDisplay(transactionType string) string {
 	switch transactionType {
@@ -540,6 +653,56 @@ func HandleTransactionRejectedTask(ctx context.Context, t *asynq.Task) error {
 	}
 
 	log.Printf("Transaction rejected email sent successfully to: %s", payload.To[0])
+	return nil
+}
+
+// HandleNewTransactionAdminTask handles new transaction admin notification email delivery
+func HandleNewTransactionAdminTask(ctx context.Context, t *asynq.Task) error {
+	var payload NewTransactionAdminPayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		return fmt.Errorf("failed to unmarshal new transaction admin payload: %v: %w", err, asynq.SkipRetry)
+	}
+
+	if err := validateEmailPayload(payload.EmailJobPayload); err != nil {
+		return fmt.Errorf("invalid new transaction admin payload: %v: %w", err, asynq.SkipRetry)
+	}
+
+	emailSender := interfaces.GetGlobalEmailSender()
+	if emailSender == nil {
+		return fmt.Errorf("email sender not initialized")
+	}
+
+	err := emailSender.SendNewTransactionAdminEmail(payload.To, payload.UserName, payload.UserEmail, payload.Transaction)
+	if err != nil {
+		return fmt.Errorf("failed to send new transaction admin email: %w", err)
+	}
+
+	log.Printf("New transaction admin email sent successfully to: %v", payload.To)
+	return nil
+}
+
+// HandleNewDepositAdminTask handles new deposit admin notification email delivery
+func HandleNewDepositAdminTask(ctx context.Context, t *asynq.Task) error {
+	var payload NewDepositAdminPayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		return fmt.Errorf("failed to unmarshal new deposit admin payload: %v: %w", err, asynq.SkipRetry)
+	}
+
+	if err := validateEmailPayload(payload.EmailJobPayload); err != nil {
+		return fmt.Errorf("invalid new deposit admin payload: %v: %w", err, asynq.SkipRetry)
+	}
+
+	emailSender := interfaces.GetGlobalEmailSender()
+	if emailSender == nil {
+		return fmt.Errorf("email sender not initialized")
+	}
+
+	err := emailSender.SendNewDepositAdminEmail(payload.To, payload.UserName, payload.UserEmail, payload.Transaction)
+	if err != nil {
+		return fmt.Errorf("failed to send new deposit admin email: %w", err)
+	}
+
+	log.Printf("New deposit admin email sent successfully to: %v", payload.To)
 	return nil
 }
 

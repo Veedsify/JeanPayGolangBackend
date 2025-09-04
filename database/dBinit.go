@@ -1,6 +1,9 @@
 package database
 
 import (
+	"fmt"
+	"regexp"
+
 	"github.com/Veedsify/JeanPayGoBackend/database/models"
 	"github.com/Veedsify/JeanPayGoBackend/libs"
 	"gorm.io/driver/postgres"
@@ -14,8 +17,30 @@ var USER string = libs.GetEnvOrDefault("DB_USER", "postgres")
 var PASSWORD string = libs.GetEnvOrDefault("DB_PASSWORD", "1234")
 var NAME string = libs.GetEnvOrDefault("DB_NAME", "jeanpay")
 var PORT string = libs.GetEnvOrDefault("DB_PORT", "5432")
-var AdminEmail = libs.GetEnvOrDefault("ADMIN_DEFAULT_EMAIL", "")
-var AdminPassword = libs.GetEnvOrDefault("ADMIN_DEFAULT_PASSWORD", "")
+var AdminEmail = libs.GetEnvOrDefault("ADMIN_DEFAULT_EMAIL", "admin@jeanpay.com")
+var AdminPassword = libs.GetEnvOrDefault("ADMIN_DEFAULT_PASSWORD", "admin123")
+
+// validateAndFixAdminEmail ensures the admin email is valid
+func validateAndFixAdminEmail() string {
+	email := AdminEmail
+
+	// If the email is the literal environment variable name or empty, use default
+	if email == "" || email == "ADMIN_DEFAULT_EMAIL" || !isValidEmail(email) {
+		fmt.Printf("Warning: Invalid or missing admin email '%s', using default: admin@jeanpay.com\n", email)
+		return "admin@jeanpay.com"
+	}
+
+	return email
+}
+
+// isValidEmail validates an email address using regex
+func isValidEmail(email string) bool {
+	if len(email) > 254 {
+		return false
+	}
+	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	return emailRegex.MatchString(email)
+}
 
 func InitDB() {
 	dsn := "host=" + HOST + " user=" + USER + " password=" + PASSWORD + " dbname=" + NAME + " port=" + PORT + " sslmode=disable"
@@ -56,10 +81,13 @@ func autoMigrate(db *gorm.DB) {
 		panic("failed to hash password")
 	}
 	if count == 0 {
+		// Validate and fix admin email
+		validEmail := validateAndFixAdminEmail()
+
 		db.Create(&models.User{
 			FirstName:          "Admin",
 			LastName:           "User",
-			Email:              AdminEmail,
+			Email:              validEmail,
 			Username:           "admin",
 			Password:           hashedPassword,
 			IsAdmin:            true,
@@ -73,5 +101,6 @@ func autoMigrate(db *gorm.DB) {
 				FeesBreakdown:   true,
 			},
 		})
+		fmt.Printf("Admin user created with email: %s\n", validEmail)
 	}
 }

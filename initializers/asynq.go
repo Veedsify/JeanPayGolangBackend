@@ -121,6 +121,8 @@ func registerHandlers(mux *asynq.ServeMux) {
 	mux.HandleFunc(jobs.TypeTwoFactorEmail, jobs.HandleTwoFactorEmailTask)
 	mux.HandleFunc(jobs.TypeTransactionApproved, jobs.HandleTransactionApprovedTask)
 	mux.HandleFunc(jobs.TypeTransactionRejected, jobs.HandleTransactionRejectedTask)
+	mux.HandleFunc(jobs.TypeNewTransactionAdmin, jobs.HandleNewTransactionAdminTask)
+	mux.HandleFunc(jobs.TypeNewDepositAdmin, jobs.HandleNewDepositAdminTask)
 	// Activity Log
 	mux.HandleFunc(jobs.TypeActivityLog, jobs.HandleActivityJobTask)
 	// Notification Log

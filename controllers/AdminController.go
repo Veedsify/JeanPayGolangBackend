@@ -811,7 +811,7 @@ func UpdateRate(c *gin.Context) {
 		return
 	}
 
-	user, ok := userInterface.(models.User)
+	user, ok := userInterface.(*libs.JWTClaims)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   true,
@@ -880,7 +880,7 @@ func ToggleRateStatus(c *gin.Context) {
 		return
 	}
 
-	user, ok := userInterface.(models.User)
+	user, ok := userInterface.(*libs.JWTClaims)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   true,
@@ -936,7 +936,7 @@ func DeleteRate(c *gin.Context) {
 		return
 	}
 
-	user, ok := userInterface.(models.User)
+	user, ok := userInterface.(*libs.JWTClaims)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   true,

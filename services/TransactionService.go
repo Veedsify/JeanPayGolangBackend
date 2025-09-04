@@ -32,6 +32,10 @@ func CreateTransaction(userId uint, transaction types.NewTransactionRequest) (ty
 		return types.CreateNewTransactionResponse{}, "INTERNAL_SERVER_ERROR", errors.New("failed to generate transaction index")
 	}
 	var transactionDir = utils.GetConvertdirection(transaction.FromCurrency)
+	currentExchangeRate, err := GetExchangeRates()
+	if err != nil {
+		return types.CreateNewTransactionResponse{}, "EXCHANGE_RATE_NOT_FOUND", errors.New("exchange rate not found")
+	}
 
 	switch transaction.MethodOfPayment {
 	case "wallet":
@@ -58,6 +62,7 @@ func CreateTransaction(userId uint, transaction types.NewTransactionRequest) (ty
 						Description:     fmt.Sprintf("Transfer %s %s to %s", transaction.ToCurrency, transaction.ToAmount, transaction.RecipientName),
 						Reference:       libs.GenerateUniqueID(),
 						Direction:       transactionDir,
+						CurrentRate:     currentExchangeRate.Rates[string(transactionDir)],
 						TransactionDetails: models.TransactionDetails{
 							ToCurrency:      transaction.ToCurrency,
 							FromCurrency:    transaction.FromCurrency,
@@ -89,6 +94,7 @@ func CreateTransaction(userId uint, transaction types.NewTransactionRequest) (ty
 			Description:     fmt.Sprintf("Transfer %s %s to %s", transaction.FromCurrency, transaction.FromAmount, transaction.RecipientName),
 			Reference:       libs.GenerateUniqueID(),
 			Direction:       transactionDir,
+			CurrentRate:     currentExchangeRate.Rates[string(transactionDir)],
 			TransactionDetails: models.TransactionDetails{
 				ToCurrency:      transaction.ToCurrency,
 				FromCurrency:    transaction.FromCurrency,
@@ -104,6 +110,21 @@ func CreateTransaction(userId uint, transaction types.NewTransactionRequest) (ty
 		}
 		if err := database.DB.Create(&transaction).Error; err != nil {
 			return types.CreateNewTransactionResponse{}, "INTERNAL_SERVER_ERROR", errors.New("failed to create transaction")
+		}
+
+		// Send email notification to admins for new transfer transaction
+		adminEmails, err := GetAdminEmails()
+		if err != nil {
+			// Log the error but don't fail the transaction
+			fmt.Printf("Warning: Failed to get admin emails for transaction notification: %v\n", err)
+		} else if len(adminEmails) > 0 {
+			// Get full user details for email
+			var fullUser models.User
+			if err := database.DB.First(&fullUser, userId).Error; err == nil {
+				emailClient := jobs.NewEmailJobClient()
+				defer emailClient.Close()
+				emailClient.EnqueueNewTransactionAdmin(adminEmails, fullUser.FirstName+" "+fullUser.LastName, fullUser.Email, transaction)
+			}
 		}
 
 		return types.CreateNewTransactionResponse{
@@ -151,6 +172,10 @@ func HandleDirectTransaction(transaction types.NewTransactionRequest, transactio
 	}
 
 	var transactionDir = utils.GetConvertdirection(transaction.FromCurrency)
+	currentExchangeRate, err := GetExchangeRates()
+	if err != nil {
+		return types.CreateNewTransactionResponse{}, "EXCHANGE_RATE_NOT_FOUND", errors.New("exchange rate not found")
+	}
 
 	// Create a pending transaction for direct payment
 	pendingTransaction := models.Transaction{
@@ -161,6 +186,7 @@ func HandleDirectTransaction(transaction types.NewTransactionRequest, transactio
 		TransactionType: models.Transfer,
 		Reference:       libs.GenerateUniqueID(),
 		Direction:       transactionDir,
+		CurrentRate:     currentExchangeRate.Rates[string(transactionDir)],
 		Description:     fmt.Sprintf("Transfer %s %s to %s", transaction.ToCurrency, transaction.ToAmount, transaction.RecipientName),
 		TransactionDetails: models.TransactionDetails{
 			ToCurrency:      transaction.ToCurrency,
@@ -178,6 +204,21 @@ func HandleDirectTransaction(transaction types.NewTransactionRequest, transactio
 
 	if err := database.DB.Create(&pendingTransaction).Error; err != nil {
 		return types.CreateNewTransactionResponse{}, "INTERNAL_SERVER_ERROR", errors.New("failed to create transaction")
+	}
+
+	// Send email notification to admins for new transfer transaction
+	adminEmails, err := GetAdminEmails()
+	if err != nil {
+		// Log the error but don't fail the transaction
+		fmt.Printf("Warning: Failed to get admin emails for transaction notification: %v\n", err)
+	} else if len(adminEmails) > 0 {
+		// Get full user details for email
+		var fullUser models.User
+		if err := database.DB.First(&fullUser, userId).Error; err == nil {
+			emailClient := jobs.NewEmailJobClient()
+			defer emailClient.Close()
+			emailClient.EnqueueNewTransactionAdmin(adminEmails, fullUser.FirstName+" "+fullUser.LastName, fullUser.Email, pendingTransaction)
+		}
 	}
 
 	title := "Transaction Successful"
@@ -771,6 +812,10 @@ func CreateDepositTransactionService(userID uint, request types.CreateDepositReq
 	} else {
 		direction = models.DepositGHS
 	}
+	currentExchangeRate, err := GetExchangeRates()
+	if err != nil {
+		return nil, errors.New("exchange rate not found")
+	}
 	transaction := models.Transaction{
 		UserID:          userID,
 		TransactionID:   transactionID,
@@ -778,11 +823,34 @@ func CreateDepositTransactionService(userID uint, request types.CreateDepositReq
 		TransactionType: models.Deposit,
 		Reference:       reference,
 		Direction:       direction,
+		CurrentRate:     currentExchangeRate.Rates[string(direction)],
 		Description:     request.Description,
+		TransactionDetails: models.TransactionDetails{
+			FromCurrency: request.Currency,
+			ToCurrency:   request.Currency,
+			FromAmount:   request.Amount,
+			ToAmount:     request.Amount,
+		},
 	}
 	if err := database.DB.Create(&transaction).Error; err != nil {
 		return nil, errors.New("failed to create deposit transaction")
 	}
+
+	// Get user details for email notification
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err == nil {
+		// Send email notification to admins for new deposit transaction
+		adminEmails, err := GetAdminEmails()
+		if err != nil {
+			// Log the error but don't fail the transaction
+			fmt.Printf("Warning: Failed to get admin emails for deposit notification: %v\n", err)
+		} else if len(adminEmails) > 0 {
+			emailClient := jobs.NewEmailJobClient()
+			defer emailClient.Close()
+			emailClient.EnqueueNewDepositAdmin(adminEmails, user.FirstName+" "+user.LastName, user.Email, transaction)
+		}
+	}
+
 	response := &types.TransactionWithUser{
 		TransactionID:   transaction.TransactionID,
 		UserID:          transaction.UserID,
@@ -842,6 +910,11 @@ func CreateWithdrawalTransactionService(userID uint, request types.CreateWithdra
 	} else {
 		direction = models.WithdrawalGHS
 	}
+	currentExchangeRate, err := GetExchangeRates()
+	if err != nil {
+		tx.Rollback()
+		return nil, errors.New("exchange rate not found")
+	}
 	transaction := models.Transaction{
 		UserID:          userID,
 		TransactionID:   transactionID,
@@ -849,7 +922,14 @@ func CreateWithdrawalTransactionService(userID uint, request types.CreateWithdra
 		TransactionType: models.Withdrawal,
 		Reference:       reference,
 		Direction:       direction,
+		CurrentRate:     currentExchangeRate.Rates[string(direction)],
 		Description:     fmt.Sprintf("Withdrawal to %s. %s", request.BankAccount, request.Description),
+		TransactionDetails: models.TransactionDetails{
+			FromCurrency: request.Currency,
+			ToCurrency:   request.Currency,
+			FromAmount:   request.Amount,
+			ToAmount:     request.Amount,
+		},
 	}
 	if err := tx.Create(&transaction).Error; err != nil {
 		tx.Rollback()
