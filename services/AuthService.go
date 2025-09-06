@@ -29,14 +29,15 @@ func RegisterUser(user types.RegisterUser) error {
 	ngnId, ghsId := libs.GenerateUniqueWalletId()
 
 	createUser := models.User{
-		Email:      user.Email,
-		Password:   hashedPassword,
-		FirstName:  user.FirstName,
-		LastName:   user.LastName,
-		Country:    user.Country,
-		IsAdmin:    false,
-		IsVerified: false, // User starts unverified until they verify their email
-		UserID:     uniqUUid,
+		Email:       user.Email,
+		Password:    hashedPassword,
+		FirstName:   user.FirstName,
+		LastName:    user.LastName,
+		Country:     user.Country,
+		IsAdmin:     false,
+		PhoneNumber: user.Phone,
+		IsVerified:  false, // User starts unverified until they verify their email
+		UserID:      uniqUUid,
 		Setting: models.Setting{
 			DefaultCurrency: models.DefaultCurrency(libs.GetDefaultCurrency(string(user.Country))),
 		},
