@@ -1841,3 +1841,75 @@ func ToggleUserTwoFactor(userID uint, enabled bool, adminID uint) (types.AdminAc
 
 	return response, nil
 }
+
+func DeleteUser(userID uint, adminID uint) (types.AdminActionResponse, error) {
+	db := database.DB
+	var response types.AdminActionResponse
+
+	// Start transaction
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Find the user first to ensure they exist
+	var user models.User
+	if err := tx.Where("id = ?", userID).First(&user).Error; err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return response, fmt.Errorf("user not found")
+		}
+		return response, fmt.Errorf("failed to find user: %w", err)
+	}
+
+	// Delete related records first to maintain referential integrity
+	// Delete user's wallet
+	if err := tx.Where("user_id = ?", userID).Delete(&models.Wallet{}).Error; err != nil {
+		tx.Rollback()
+		return response, fmt.Errorf("failed to delete user wallet: %w", err)
+	}
+
+	// Delete user's transactions
+	if err := tx.Where("user_id = ?", userID).Delete(&models.Transaction{}).Error; err != nil {
+		tx.Rollback()
+		return response, fmt.Errorf("failed to delete user transactions: %w", err)
+	}
+
+	// Delete user's notifications
+	if err := tx.Where("user_id = ?", userID).Delete(&models.Notification{}).Error; err != nil {
+		tx.Rollback()
+		return response, fmt.Errorf("failed to delete user notifications: %w", err)
+	}
+
+	// Delete the user
+	if err := tx.Delete(&user).Error; err != nil {
+		tx.Rollback()
+		return response, fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	// Log admin action
+	adminLog := models.AdminLog{
+		AdminID:  uint32(adminID),
+		Action:   "DELETE_USER",
+		Target:   "user",
+		TargetID: fmt.Sprintf("%d", userID),
+		Details:  fmt.Sprintf("User %d (%s %s) deleted permanently", user.UserID, user.FirstName, user.LastName),
+	}
+
+	if err := tx.Create(&adminLog).Error; err != nil {
+		log.Printf("Failed to log admin action: %v", err)
+		// Don't fail the whole operation for logging issues
+	}
+
+	tx.Commit()
+
+	response = types.AdminActionResponse{
+		Success:   true,
+		Message:   "User deleted successfully",
+		Timestamp: time.Now(),
+	}
+
+	return response, nil
+}

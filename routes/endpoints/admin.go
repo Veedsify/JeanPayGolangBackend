@@ -24,6 +24,7 @@ func AdminRoutes(admin *gin.RouterGroup) {
 		admin.GET(constants.AdminUsersBase+constants.AdminUsersWallet, controllers.GetUserWallet)
 		admin.GET(constants.AdminUsersBase+constants.AdminUsersActivityLogs, controllers.GetUserActivityLogs)
 		admin.PATCH(constants.AdminUsersBase+constants.AdminUsersTwoFactor, controllers.ToggleUserTwoFactor)
+		admin.DELETE(constants.AdminUsersBase+constants.AdminUsersDelete, controllers.DeleteUser)
 		admin.POST(constants.AdminUsersBase+constants.AdminUsersSearch, controllers.SearchUsers)
 
 		// Admin transaction management routes

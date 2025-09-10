@@ -42,6 +42,6 @@ func main() {
 	})
 	routes.ApiRoutes(router)
 	services.CreateTransactionPDF()
-	// Print all routes before running
-	router.Run() // listen and serve on 0.0.0.0:8080
+	PORT := libs.GetEnvOrDefault("PORT", "8080")
+	router.Run(":" + PORT)
 }
