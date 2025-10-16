@@ -77,7 +77,7 @@ func UploadReceiptEndpoint(c *gin.Context) {
 
 	// Create receipt record in database
 	receipt := models.Receipt{
-		TransactionID: transactionID,
+		TransactionID: transaction.ID,
 		CloudinaryURL: cloudinaryURL,
 		OriginalName:  header.Filename,
 		FileSize:      header.Size,
@@ -142,7 +142,7 @@ func GetReceiptEndpoint(c *gin.Context) {
 	if !claims.(*libs.JWTClaims).IsAdmin {
 		query = query.Where("user_id = ?", userID)
 	}
-	
+
 	if err := query.First(&transaction).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error":   true,

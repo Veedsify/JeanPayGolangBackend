@@ -206,7 +206,8 @@ func GetActivePaymentAccounts(currency, accountType string) ([]models.PaymentAcc
 
 // validatePaymentAccountFields validates that required fields are provided based on account type
 func validatePaymentAccountFields(params types.CreatePaymentAccountRequest) error {
-	if params.AccountType == "bank" {
+	switch params.AccountType {
+	case "bank":
 		if params.AccountNumber == "" {
 			return errors.New("account number is required for bank accounts")
 		}
@@ -216,7 +217,7 @@ func validatePaymentAccountFields(params types.CreatePaymentAccountRequest) erro
 		if params.BankCode == "" {
 			return errors.New("bank code is required for bank accounts")
 		}
-	} else if params.AccountType == "momo" {
+	case "momo":
 		if params.PhoneNumber == "" {
 			return errors.New("phone number is required for mobile money accounts")
 		}
