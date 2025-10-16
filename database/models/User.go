@@ -21,7 +21,9 @@ type User struct {
 	Username           string           `json:"username"`
 	Password           string           `json:"password"`
 	ProfilePicture     string           `json:"profile_picture" gorm:"default:'/images/defaults/user.jpg'"`
-	PhoneNumber        string           `json:"phone_number"`
+	PhoneNumber        string           `json:"phone_number" gorm:"not null"`
+	CountryCode        string           `json:"country_code" gorm:"default:null"`
+	PhoneVerified      bool             `json:"phone_verified" gorm:"default:false"`
 	IsAdmin            bool             `json:"is_admin"`
 	IsVerified         bool             `json:"is_verified"`
 	IsBlocked          bool             `json:"is_blocked"`

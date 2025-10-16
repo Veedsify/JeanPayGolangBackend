@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Veedsify/JeanPayGoBackend/constants"
 	"github.com/Veedsify/JeanPayGoBackend/database"
 	"github.com/Veedsify/JeanPayGoBackend/database/models"
 	"github.com/Veedsify/JeanPayGoBackend/types"
@@ -19,9 +20,15 @@ func ConvertCurrency(userID uint, req types.ConversionRequest) (*types.Conversio
 		return nil, errors.New("user ID is required")
 	}
 
-	// Validate request
-	if err := validateConversionRequest(req); err != nil {
-		return nil, err
+	// Validate request with country code if provided
+	if req.CountryCode != "" {
+		if err := validateConversionRequestWithCountry(req, req.CountryCode); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := validateConversionRequest(req); err != nil {
+			return nil, err
+		}
 	}
 
 	// Get user wallets
@@ -148,22 +155,31 @@ func GetExchangeRates() (*types.ExchangeRatesResponse, error) {
 	var lastUpdated time.Time
 	source := "default"
 
-	// Get NGN to GHS rate
-	ngnToGhsRate, err := getCurrentExchangeRate("NGN", "GHS")
-	if err == nil {
-		rates["NGN-GHS"] = ngnToGhsRate
-		source = "database"
-	} else {
-		rates["NGN-GHS"] = 0.0053 // Default rate
-	}
+	// Get all supported currency pairs
+	supportedPairs := utils.GetSupportedCurrencyPairs()
 
-	// Get GHS to NGN rate
-	ghsToNgnRate, err := getCurrentExchangeRate("GHS", "NGN")
-	if err == nil {
-		rates["GHS-NGN"] = ghsToNgnRate
-		source = "database"
-	} else {
-		rates["GHS-NGN"] = 188.68 // Default rate
+	for _, pair := range supportedPairs {
+		pairKey := pair.String()
+		rate, err := getCurrentExchangeRate(pair.From, pair.To)
+		if err == nil {
+			rates[pairKey] = rate
+			source = "database"
+		} else {
+			// Use default rates if not in database
+			defaultRates := map[string]float64{
+				"NGN-GHS": 0.0053,
+				"GHS-NGN": 188.68,
+				"USD-GHS": 16.50,
+				"NGN-XOF": 0.35,
+				"GHS-XOF": 66.00,
+				"XOF-GHS": 0.015,
+				"XOF-NGN": 2.86,
+			}
+
+			if defaultRate, exists := defaultRates[pairKey]; exists {
+				rates[pairKey] = defaultRate
+			}
+		}
 	}
 
 	lastUpdated = time.Now()
@@ -177,9 +193,15 @@ func GetExchangeRates() (*types.ExchangeRatesResponse, error) {
 
 // CalculateConversion calculates conversion amounts without performing the conversion
 func CalculateConversion(req types.ConversionRequest) (*types.CalculationResponse, error) {
-	// Validate request
-	if err := validateConversionRequest(req); err != nil {
-		return nil, err
+	// Validate request with country code if provided
+	if req.CountryCode != "" {
+		if err := validateConversionRequestWithCountry(req, req.CountryCode); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := validateConversionRequest(req); err != nil {
+			return nil, err
+		}
 	}
 
 	// Get current exchange rate
@@ -235,11 +257,11 @@ func GetConversionHistory(userID uint32, pagination types.PaginationRequest, sta
 		query = query.Where("status = ?", status)
 	}
 
-	if fromCurrency != "" && isValidCurrency(fromCurrency) {
+	if fromCurrency != "" && constants.IsValidCurrency(fromCurrency) {
 		query = query.Where("from_currency = ?", fromCurrency)
 	}
 
-	if toCurrency != "" && isValidCurrency(toCurrency) {
+	if toCurrency != "" && constants.IsValidCurrency(toCurrency) {
 		query = query.Where("to_currency = ?", toCurrency)
 	}
 
@@ -312,11 +334,20 @@ func getCurrentExchangeRate(fromCurrency, toCurrency string) (float64, error) {
 		return 0, fmt.Errorf("failed to query exchange rate: %w", err)
 	}
 
-	// Return default rates if not in database
-	if fromCurrency == "NGN" && toCurrency == "GHS" {
-		return 0.0053, nil
-	} else if fromCurrency == "GHS" && toCurrency == "NGN" {
-		return 188.68, nil
+	// Return default rates if not in database for supported pairs
+	defaultRates := map[string]float64{
+		"NGN-GHS": 0.0053,
+		"GHS-NGN": 188.68,
+		"USD-GHS": 16.50,
+		"NGN-XOF": 0.35,
+		"GHS-XOF": 66.00,
+		"XOF-GHS": 0.015,
+		"XOF-NGN": 2.86,
+	}
+
+	pairKey := fmt.Sprintf("%s-%s", fromCurrency, toCurrency)
+	if defaultRate, exists := defaultRates[pairKey]; exists {
+		return defaultRate, nil
 	}
 
 	return 0, errors.New("exchange rate not available for the specified currency pair")
@@ -324,12 +355,8 @@ func getCurrentExchangeRate(fromCurrency, toCurrency string) (float64, error) {
 
 // getConversionDirection gets transaction direction for conversion
 func getConversionDirection(fromCurrency, toCurrency string) models.TransactionDirection {
-	if fromCurrency == "NGN" && toCurrency == "GHS" {
-		return "NGN-GHS"
-	} else if fromCurrency == "GHS" && toCurrency == "NGN" {
-		return "GHS-NGN"
-	}
-	return ""
+	direction := fmt.Sprintf("%s-%s", fromCurrency, toCurrency)
+	return models.TransactionDirection(direction)
 }
 
 // updateWalletBalanceInTx updates wallet balance within a transaction
@@ -343,10 +370,21 @@ func updateWalletBalanceInTx(tx *gorm.DB, userID uint, currency string, amount f
 
 	// Update balance based on currency
 	roundedAmount := utils.RoundCurrency(amount)
-	if currency == "NGN" && wallet.Currency == "NGN" {
+	if currency == wallet.Currency {
 		wallet.Balance += roundedAmount
-	} else if currency == "GHS" {
-		wallet.Balance += roundedAmount
+	} else {
+		// Handle multi-currency wallet updates
+		// For now, we'll update the balance if currencies match
+		// In a full implementation, you might want separate wallet records per currency
+		if currency == "NGN" && wallet.Currency == "NGN" {
+			wallet.Balance += roundedAmount
+		} else if currency == "GHS" && wallet.Currency == "GHS" {
+			wallet.Balance += roundedAmount
+		} else if currency == "XOF" && wallet.Currency == "XOF" {
+			wallet.Balance += roundedAmount
+		} else if currency == "USD" && wallet.Currency == "USD" {
+			wallet.Balance += roundedAmount
+		}
 	}
 
 	// Update totals for conversion
@@ -386,16 +424,32 @@ func validateConversionRequest(req types.ConversionRequest) error {
 		return errors.New("amount must be greater than zero")
 	}
 
-	if req.FromCurrency != "NGN" && req.FromCurrency != "GHS" {
-		return errors.New("invalid from currency. Must be NGN or GHS")
+	// Use the new currency pair validation
+	if err := utils.ValidateCurrencyPair(req.FromCurrency, req.ToCurrency); err != nil {
+		return err
 	}
 
-	if req.ToCurrency != "NGN" && req.ToCurrency != "GHS" {
-		return errors.New("invalid to currency. Must be NGN or GHS")
+	return nil
+}
+
+// validateConversionRequestWithCountry validates conversion request with country validation for XOF
+func validateConversionRequestWithCountry(req types.ConversionRequest, countryCode string) error {
+	if req.Amount <= 0 {
+		return errors.New("amount must be greater than zero")
 	}
 
-	if req.FromCurrency == req.ToCurrency {
-		return errors.New("cannot convert to the same currency")
+	// Use the new currency pair validation
+	if err := utils.ValidateCurrencyPair(req.FromCurrency, req.ToCurrency); err != nil {
+		return err
+	}
+
+	// Validate XOF country restrictions
+	if err := utils.ValidateXOFCountry(req.FromCurrency, countryCode); err != nil {
+		return err
+	}
+
+	if err := utils.ValidateXOFCountry(req.ToCurrency, countryCode); err != nil {
+		return err
 	}
 
 	return nil

@@ -1000,7 +1000,7 @@ func GetTransactionStatsService(userID string) (*types.TransactionStatsResponse,
 // Helper functions
 // isValidCurrency checks if currency is valid
 func isValidCurrency(currency string) bool {
-	validCurrencies := []string{"NGN", "GHS"}
+	validCurrencies := []string{"NGN", "GHS", "XOF", "USD"}
 	for _, c := range validCurrencies {
 		if c == currency {
 			return true

@@ -56,9 +56,13 @@ type Transaction struct {
 	Reference          string               `json:"reference" gorm:"not null;uniqueIndex"`
 	Direction          TransactionDirection `json:"direction" gorm:"not null"`
 	Description        string               `json:"description" gorm:"default:''"`
+	ReceiptURL         *string              `json:"receipt_url" gorm:"type:text"`
+	WithdrawalFee      float64              `json:"withdrawal_fee" gorm:"default:null"`
+	FeeCalculation     string               `json:"fee_calculation" gorm:"type:text;default:null"`
 	User               User                 `json:"user" gorm:"not null"`
 	CurrentRate        float64              `json:"current_rate" gorm:"null"`
-	TransactionDetails TransactionDetails   `json:"transaction_details" gorm:"foreignKey:TransactionID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	TransactionDetails TransactionDetails   `json:"transaction_details" gorm:"foreignKey:TransactionID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Receipts           []Receipt            `json:"receipts" gorm:"foreignKey:TransactionID"`
 }
 
 type TransactionDetails struct {

@@ -141,6 +141,107 @@ func ValidatePhoneNumber(phone string) error {
 	return nil
 }
 
+// ValidatePhoneNumberRequired validates phone number format (required for registration)
+func ValidatePhoneNumberRequired(phone string) error {
+	if phone == "" {
+		return fmt.Errorf("phone number is required")
+	}
+
+	// Remove any spaces or dashes
+	cleanPhone := strings.ReplaceAll(strings.ReplaceAll(phone, " ", ""), "-", "")
+
+	if !PhoneRegex.MatchString(cleanPhone) {
+		return fmt.Errorf("invalid phone number format")
+	}
+
+	// Check minimum length (should be at least 10 digits after country code)
+	if len(cleanPhone) < 10 {
+		return fmt.Errorf("phone number is too short")
+	}
+
+	if len(cleanPhone) > 15 {
+		return fmt.Errorf("phone number is too long")
+	}
+
+	return nil
+}
+
+// ValidateCountryCode validates country code for supported countries
+func ValidateCountryCode(countryCode string) error {
+	if countryCode == "" {
+		return fmt.Errorf("country code is required")
+	}
+
+	if !constants.IsValidCountryCode(countryCode) {
+		supportedCodes := constants.GetSupportedCountryCodes()
+		return fmt.Errorf("unsupported country code. Supported codes: %s", strings.Join(supportedCodes, ", "))
+	}
+
+	return nil
+}
+
+// ValidatePhoneWithCountryCode validates phone number with country code
+func ValidatePhoneWithCountryCode(phone, countryCode string) error {
+	if err := ValidatePhoneNumberRequired(phone); err != nil {
+		return err
+	}
+
+	if err := ValidateCountryCode(countryCode); err != nil {
+		return err
+	}
+
+	// Normalize phone number by removing country code if it's included
+	cleanPhone := strings.TrimSpace(phone)
+
+	// Remove country code from phone if it starts with it
+	if strings.HasPrefix(cleanPhone, countryCode) {
+		cleanPhone = strings.TrimPrefix(cleanPhone, countryCode)
+		cleanPhone = strings.TrimLeft(cleanPhone, " -")
+	}
+
+	// Remove leading zero if present (common in local format)
+	cleanPhone = strings.TrimPrefix(cleanPhone, "0")
+
+	// Validate based on country code
+	switch countryCode {
+	case constants.CountryCodeNigeria: // Nigeria
+		if len(cleanPhone) != 10 {
+			return fmt.Errorf("Nigerian phone number must be 10 digits after country code")
+		}
+		// Nigerian mobile numbers start with 7, 8, or 9
+		if !strings.HasPrefix(cleanPhone, "7") && !strings.HasPrefix(cleanPhone, "8") && !strings.HasPrefix(cleanPhone, "9") {
+			return fmt.Errorf("Nigerian mobile number must start with 7, 8, or 9")
+		}
+	case constants.CountryCodeGhana: // Ghana
+		if len(cleanPhone) != 9 {
+			return fmt.Errorf("Ghanaian phone number must be 9 digits after country code")
+		}
+		// Ghanaian mobile numbers typically start with 2, 5, or 0
+		if !strings.HasPrefix(cleanPhone, "2") && !strings.HasPrefix(cleanPhone, "5") && !strings.HasPrefix(cleanPhone, "0") {
+			return fmt.Errorf("Ghanaian mobile number format is invalid")
+		}
+	}
+
+	return nil
+}
+
+// NormalizePhoneNumber normalizes phone number format
+func NormalizePhoneNumber(phone, countryCode string) string {
+	cleanPhone := strings.TrimSpace(phone)
+
+	// Remove country code from phone if it's included
+	if strings.HasPrefix(cleanPhone, countryCode) {
+		cleanPhone = strings.TrimPrefix(cleanPhone, countryCode)
+		cleanPhone = strings.TrimLeft(cleanPhone, " -")
+	}
+
+	// Remove leading zero if present
+	cleanPhone = strings.TrimPrefix(cleanPhone, "0")
+
+	// Return normalized format without country code (will be stored separately)
+	return cleanPhone
+}
+
 // ValidateCurrency validates currency code
 func ValidateCurrency(currency string) error {
 	if currency == "" {
@@ -270,6 +371,37 @@ func ValidateUserRegistration(firstName, lastName, email, password, phoneNumber,
 	return errors
 }
 
+// ValidateUserRegistrationWithPhone validates user registration data with required phone and country code
+func ValidateUserRegistrationWithPhone(firstName, lastName, email, password, phoneNumber, countryCode, country string) ValidationErrors {
+	var errors ValidationErrors
+
+	if err := ValidateName(firstName, "first name"); err != nil {
+		errors.Add("firstName", err.Error())
+	}
+
+	if err := ValidateName(lastName, "last name"); err != nil {
+		errors.Add("lastName", err.Error())
+	}
+
+	if err := ValidateEmail(email); err != nil {
+		errors.Add("email", err.Error())
+	}
+
+	if err := ValidatePassword(password); err != nil {
+		errors.Add("password", err.Error())
+	}
+
+	if err := ValidatePhoneWithCountryCode(phoneNumber, countryCode); err != nil {
+		errors.Add("phoneNumber", err.Error())
+	}
+
+	if err := ValidateCountry(country); err != nil {
+		errors.Add("country", err.Error())
+	}
+
+	return errors
+}
+
 // ValidateUserLogin validates user login data
 func ValidateUserLogin(email, password string) ValidationErrors {
 	var errors ValidationErrors
@@ -297,8 +429,42 @@ func ValidateConversionRequest(fromCurrency, toCurrency string, amount float64) 
 		errors.Add("toCurrency", err.Error())
 	}
 
-	if fromCurrency == toCurrency {
-		errors.Add("currency", "cannot convert to the same currency")
+	// Use the new currency pair validation
+	if err := ValidateCurrencyPair(fromCurrency, toCurrency); err != nil {
+		errors.Add("currencyPair", err.Error())
+	}
+
+	if err := ValidateAmount(amount); err != nil {
+		errors.Add("amount", err.Error())
+	}
+
+	return errors
+}
+
+// ValidateConversionRequestWithCountry validates currency conversion request with country validation for XOF
+func ValidateConversionRequestWithCountry(fromCurrency, toCurrency string, amount float64, countryCode string) ValidationErrors {
+	var errors ValidationErrors
+
+	if err := ValidateCurrency(fromCurrency); err != nil {
+		errors.Add("fromCurrency", err.Error())
+	}
+
+	if err := ValidateCurrency(toCurrency); err != nil {
+		errors.Add("toCurrency", err.Error())
+	}
+
+	// Use the new currency pair validation
+	if err := ValidateCurrencyPair(fromCurrency, toCurrency); err != nil {
+		errors.Add("currencyPair", err.Error())
+	}
+
+	// Validate XOF country restrictions
+	if err := ValidateXOFCountry(fromCurrency, countryCode); err != nil {
+		errors.Add("fromCurrency", err.Error())
+	}
+
+	if err := ValidateXOFCountry(toCurrency, countryCode); err != nil {
+		errors.Add("toCurrency", err.Error())
 	}
 
 	if err := ValidateAmount(amount); err != nil {

@@ -16,12 +16,38 @@ import (
 func RegisterUserEndpoint(c *gin.Context) {
 	var user types.RegisterUser
 	if err := c.ShouldBind(&user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error(), "error": true})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid request data", "error": true, "details": err.Error()})
+		return
+	}
+
+	// Check for missing required fields
+	if user.Phone == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Phone number is required for registration", 
+			"error": true,
+			"field": "phone",
+		})
+		return
+	}
+
+	if user.CountryCode == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Country code is required for registration", 
+			"error": true,
+			"field": "country_code",
+		})
 		return
 	}
 
 	if err := services.RegisterUser(user); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error(), "error": true})
+		// Check if it's a validation error
+		if err.Error() == "sorry this account already exists" {
+			c.JSON(http.StatusConflict, gin.H{"message": err.Error(), "error": true})
+			return
+		}
+		
+		// For validation errors, return bad request
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error(), "error": true})
 		return
 	}
 

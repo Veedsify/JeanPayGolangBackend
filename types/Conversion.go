@@ -62,9 +62,10 @@ type ConversionCalculateResponse struct {
 
 // ConversionRequest represents a currency conversion request
 type ConversionRequest struct {
-	FromCurrency string  `json:"fromCurrency" validate:"required,oneof=NGN GHS"`
-	ToCurrency   string  `json:"toCurrency" validate:"required,oneof=NGN GHS"`
+	FromCurrency string  `json:"fromCurrency" validate:"required,oneof=NGN GHS XOF USD"`
+	ToCurrency   string  `json:"toCurrency" validate:"required,oneof=NGN GHS XOF USD"`
 	Amount       float64 `json:"amount" validate:"required,gt=0"`
+	CountryCode  string  `json:"countryCode,omitempty"` // Required for XOF currency validation
 }
 
 // ConversionResponse represents the response for a conversion request

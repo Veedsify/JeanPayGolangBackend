@@ -55,6 +55,10 @@ const (
 	WalletTopUp              = "/topup"
 	WalletTopUpDetails       = "/topup/:id"
 	WalletWithdraw           = "/withdraw"
+	WalletWithdrawFee        = "/withdraw/fee"
+	WalletWithdrawValidate   = "/withdraw/validate"
+	WalletWithdrawDetails    = "/withdraw/:id"
+	WalletWithdrawHistory    = "/withdrawals"
 	WalletHistory            = "/history"
 	WalletUpdateAfterPayment = "/update-after-payment"
 
@@ -158,6 +162,18 @@ const (
 	AdminPaymentAccountsToggle = "/:id/toggle"
 	AdminPaymentAccountsGet    = "/:id"
 	AdminPaymentAccountsActive = "/active"
+
+	// Admin withdrawal paths
+	AdminWithdrawalsBase    = "/withdrawals"
+	AdminWithdrawalsAll     = "/all"
+	AdminWithdrawalsStats   = "/stats"
+	AdminWithdrawalsDetails = "/details/:id"
+	AdminWithdrawalsApprove = "/approve/:id"
+	AdminWithdrawalsReject  = "/reject/:id"
+	AdminWithdrawalsStatus  = "/status/:id"
+	AdminWithdrawalsPending = "/pending"
+	AdminWithdrawalsNotes   = "/:id/notes"
+	AdminWithdrawalsHistory = "/:id/history"
 
 	// Admin logs paths
 	AdminLogsBase          = "/logs"

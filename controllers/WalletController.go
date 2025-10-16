@@ -230,3 +230,192 @@ func GetTopUpDetailsEndpoint(c *gin.Context) {
 		"data":    topupDetails,
 	})
 }
+
+// CalculateWithdrawalFeeEndpoint calculates withdrawal fee for given amount and currency
+func CalculateWithdrawalFeeEndpoint(c *gin.Context) {
+	_, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   true,
+			"message": "User not authenticated",
+		})
+		return
+	}
+
+	var req struct {
+		Amount   float64 `json:"amount" binding:"required,gt=0"`
+		Currency string  `json:"currency" binding:"required,oneof=NGN GHS"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   true,
+			"message": "Invalid request data",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	feeCalculation := services.CalculateWithdrawalFee(req.Amount, req.Currency)
+
+	c.JSON(http.StatusOK, gin.H{
+		"error":   false,
+		"message": "Withdrawal fee calculated successfully",
+		"data":    feeCalculation,
+	})
+}
+
+// ValidateWithdrawalEndpoint validates withdrawal request before processing
+func ValidateWithdrawalEndpoint(c *gin.Context) {
+	claims, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   true,
+			"message": "User not authenticated",
+		})
+		return
+	}
+
+	userID := claims.(*libs.JWTClaims).ID
+
+	var req types.WithdrawalValidationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   true,
+			"message": "Invalid request data",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Override userID from token
+	req.UserID = userID
+
+	// Get user's wallet balance
+	wallets, err := services.GetWalletBalance(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   true,
+			"message": "Failed to get wallet balance",
+		})
+		return
+	}
+
+	// Find balance for requested currency
+	var availableBalance float64
+	for _, wallet := range wallets {
+		if wallet.Currency == req.Currency {
+			availableBalance = wallet.Balance
+			break
+		}
+	}
+
+	// Calculate fee
+	feeCalc := services.CalculateWithdrawalFee(req.Amount, req.Currency)
+
+	// Validate withdrawal
+	err = services.ValidateWithdrawalLimits(userID, req.Amount, req.Currency)
+
+	response := types.WithdrawalValidationResponse{
+		IsValid:          err == nil,
+		AvailableBalance: availableBalance,
+		FeeCalculation:   feeCalc,
+	}
+
+	if err != nil {
+		response.ErrorMessage = err.Error()
+	}
+
+	statusCode := http.StatusOK
+	if !response.IsValid {
+		statusCode = http.StatusBadRequest
+	}
+
+	c.JSON(statusCode, gin.H{
+		"error": !response.IsValid,
+		"message": func() string {
+			if response.IsValid {
+				return "Withdrawal validation successful"
+			}
+			return "Withdrawal validation failed"
+		}(),
+		"data": response,
+	})
+}
+
+// GetWithdrawalDetailsEndpoint retrieves withdrawal transaction details
+func GetWithdrawalDetailsEndpoint(c *gin.Context) {
+	claims, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   true,
+			"message": "User not authenticated",
+		})
+		return
+	}
+
+	userID := claims.(*libs.JWTClaims).ID
+	transactionID := c.Param("id")
+
+	if transactionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   true,
+			"message": "Transaction ID is required",
+		})
+		return
+	}
+
+	withdrawalDetails, err := services.GetWithdrawalDetails(userID, transactionID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   true,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"error":   false,
+		"message": "Withdrawal details retrieved successfully",
+		"data":    withdrawalDetails,
+	})
+}
+
+// GetUserWithdrawalsEndpoint retrieves user's withdrawal history
+func GetUserWithdrawalsEndpoint(c *gin.Context) {
+	claims, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   true,
+			"message": "User not authenticated",
+		})
+		return
+	}
+
+	userID := claims.(*libs.JWTClaims).ID
+
+	var req types.GetWithdrawalsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   true,
+			"message": "Invalid query parameters",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	withdrawals, err := services.GetUserWithdrawals(userID, req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   true,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"error":   false,
+		"message": "Withdrawals retrieved successfully",
+		"data":    withdrawals,
+	})
+}

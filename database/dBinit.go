@@ -49,6 +49,12 @@ func InitDB() {
 		panic("failed to connect database")
 	}
 	DB = db
+
+	// Run custom migrations first
+	// if err := migrations.RunMigrations(db); err != nil {
+	// 	panic("failed to run migrations: " + err.Error())
+	// }
+
 	autoMigrate(db)
 }
 
@@ -62,6 +68,7 @@ func autoMigrate(db *gorm.DB) {
 		&models.Rate{},
 		&models.Transaction{},
 		&models.TransactionDetails{},
+		&models.Receipt{},
 		&models.Wallet{},
 		&models.WebhookEvent{},
 		&models.Setting{},
@@ -95,6 +102,8 @@ func autoMigrate(db *gorm.DB) {
 			IsTwoFactorEnabled: false,
 			ProfilePicture:     "/images/defaults/user.jpg",
 			PhoneNumber:        "08012345678",
+			CountryCode:        "+234",
+			PhoneVerified:      true,
 			Country:            models.Nigeria,
 			Setting: models.Setting{
 				DefaultCurrency: models.DefaultCurrency("NGN"),

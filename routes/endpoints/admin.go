@@ -57,5 +57,17 @@ func AdminRoutes(admin *gin.RouterGroup) {
 		admin.PATCH(constants.AdminPaymentAccountsBase+constants.AdminPaymentAccountsToggle, controllers.TogglePaymentAccountStatus)
 		admin.GET(constants.AdminPaymentAccountsBase+constants.AdminPaymentAccountsGet, controllers.GetPaymentAccountByID)
 		admin.GET(constants.AdminPaymentAccountsBase+constants.AdminPaymentAccountsActive, controllers.GetActivePaymentAccounts)
+
+		// Admin withdrawal management routes
+		admin.GET(constants.AdminWithdrawalsBase+constants.AdminWithdrawalsAll, controllers.GetAllWithdrawals)
+		admin.GET(constants.AdminWithdrawalsBase+constants.AdminWithdrawalsStats, controllers.GetWithdrawalStats)
+		admin.GET(constants.AdminWithdrawalsBase+constants.AdminWithdrawalsDetails, controllers.GetWithdrawalDetails)
+		admin.PATCH(constants.AdminWithdrawalsBase+constants.AdminWithdrawalsApprove, controllers.ApproveWithdrawal)
+		admin.PATCH(constants.AdminWithdrawalsBase+constants.AdminWithdrawalsReject, controllers.RejectWithdrawal)
+		admin.PATCH(constants.AdminWithdrawalsBase+constants.AdminWithdrawalsStatus, controllers.UpdateWithdrawalStatus)
+		admin.GET(constants.AdminWithdrawalsBase+constants.AdminWithdrawalsPending, controllers.GetPendingWithdrawals)
+		admin.POST(constants.AdminWithdrawalsBase+constants.AdminWithdrawalsNotes, controllers.AddWithdrawalNote)
+		admin.GET(constants.AdminWithdrawalsBase+constants.AdminWithdrawalsNotes, controllers.GetWithdrawalNotes)
+		admin.GET(constants.AdminWithdrawalsBase+constants.AdminWithdrawalsHistory, controllers.GetWithdrawalHistory)
 	}
 }

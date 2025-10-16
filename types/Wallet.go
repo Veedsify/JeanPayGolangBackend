@@ -151,10 +151,11 @@ type TopUpRequest struct {
 
 // WithdrawRequest represents a wallet withdrawal request
 type WithdrawRequest struct {
-	Amount           float64                `json:"amount" validate:"required,gt=0"`
-	Currency         string                 `json:"currency" validate:"required,oneof=NGN GHS"`
-	WithdrawalMethod string                 `json:"withdrawalMethod" validate:"required,oneof=bank momo"`
-	AccountDetails   map[string]interface{} `json:"accountDetails" validate:"required"`
+	Amount           float64                  `json:"amount" validate:"required,gt=0"`
+	Currency         string                   `json:"currency" validate:"required,oneof=NGN GHS"`
+	WithdrawalMethod string                   `json:"method" validate:"required,oneof=bank momo"`
+	CalculatedFee    float64                  `json:"calculatedFee" validate:"required"`
+	AccountDetails   WithdrawalAccountDetails `json:"accountDetails" validate:"required"`
 }
 
 // TopUpResponse represents the response for a top-up request
@@ -170,13 +171,15 @@ type TopUpResponse struct {
 
 // WithdrawResponse represents the response for a withdrawal request
 type WithdrawResponse struct {
-	TransactionID    string                 `json:"transactionId"`
-	Amount           float64                `json:"amount"`
-	Currency         string                 `json:"currency"`
-	WithdrawalMethod string                 `json:"withdrawalMethod"`
-	Status           string                 `json:"status"`
-	AccountDetails   map[string]interface{} `json:"accountDetails"`
-	CreatedAt        time.Time              `json:"createdAt"`
+	TransactionID    string                   `json:"transactionId"`
+	Amount           float64                  `json:"amount"`
+	Currency         string                   `json:"currency"`
+	WithdrawalMethod string                   `json:"withdrawalMethod"`
+	Status           models.TransactionStatus `json:"status"`
+	AccountDetails   WithdrawalAccountDetails `json:"accountDetails"`
+	Fee              float64                  `json:"fee"`
+	NetAmount        float64                  `json:"netAmount"`
+	CreatedAt        time.Time                `json:"createdAt"`
 }
 
 // WalletHistoryItem represents a wallet transaction history item
@@ -190,4 +193,68 @@ type WalletHistoryItem struct {
 	Description   string    `json:"description"`
 	Reference     string    `json:"reference"`
 	CreatedAt     time.Time `json:"createdAt"`
+}
+
+// WithdrawalFeeCalculation represents fee calculation details
+type WithdrawalFeeCalculation struct {
+	Amount        float64 `json:"amount"`
+	Currency      string  `json:"currency"`
+	FeeRate       float64 `json:"feeRate"` // 1.5%
+	CalculatedFee float64 `json:"calculatedFee"`
+	FinalFee      float64 `json:"finalFee"`  // After cap application
+	FeeCap        float64 `json:"feeCap"`    // 20 GHS
+	NetAmount     float64 `json:"netAmount"` // Amount - FinalFee
+}
+
+// WithdrawalValidationRequest represents validation request for withdrawal
+type WithdrawalValidationRequest struct {
+	UserID   uint    `json:"userId"`
+	Amount   float64 `json:"amount"`
+	Currency string  `json:"currency"`
+}
+
+// WithdrawalValidationResponse represents validation response
+type WithdrawalValidationResponse struct {
+	IsValid          bool                     `json:"isValid"`
+	ErrorMessage     string                   `json:"errorMessage,omitempty"`
+	AvailableBalance float64                  `json:"availableBalance"`
+	FeeCalculation   WithdrawalFeeCalculation `json:"feeCalculation"`
+}
+
+// AdminWithdrawalRequest represents admin withdrawal management request
+type AdminWithdrawalRequest struct {
+	TransactionID string `json:"transactionId" validate:"required"`
+	Action        string `json:"action" validate:"required,oneof=approve reject"`
+	Reason        string `json:"reason,omitempty"`
+	AdminNotes    string `json:"adminNotes,omitempty"`
+}
+
+// AdminWithdrawalResponse represents admin withdrawal management response
+type AdminWithdrawalResponse struct {
+	TransactionID string                   `json:"transactionId"`
+	Status        models.TransactionStatus `json:"status"`
+	Action        string                   `json:"action"`
+	Reason        string                   `json:"reason,omitempty"`
+	AdminNotes    string                   `json:"adminNotes,omitempty"`
+	ProcessedAt   time.Time                `json:"processedAt"`
+}
+
+// GetWithdrawalsRequest represents request for getting withdrawals
+type GetWithdrawalsRequest struct {
+	UserID   string `form:"user_id"`
+	Status   string `form:"status"`
+	Currency string `form:"currency"`
+	FromDate string `form:"from_date"`
+	ToDate   string `form:"to_date"`
+	Page     int    `form:"page"`
+	Limit    int    `form:"limit"`
+}
+
+// GetWithdrawalsResponse represents response for getting withdrawals
+type GetWithdrawalsResponse struct {
+	Withdrawals []WithdrawResponse `json:"withdrawals"`
+	Total       int64              `json:"total"`
+	Page        int                `json:"page"`
+	Limit       int                `json:"limit"`
+	TotalPages  int                `json:"total_pages"`
 }

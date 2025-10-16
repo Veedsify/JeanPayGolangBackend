@@ -17,6 +17,14 @@ const (
 const (
 	CurrencyNGN = "NGN"
 	CurrencyGHS = "GHS"
+	CurrencyXOF = "XOF"
+	CurrencyUSD = "USD"
+)
+
+// Country codes
+const (
+	CountryCodeNigeria = "+234"
+	CountryCodeGhana   = "+233"
 )
 
 // Transaction types
@@ -183,7 +191,7 @@ func LoadConfig() *Config {
 
 // IsValidCurrency checks if currency is valid
 func IsValidCurrency(currency string) bool {
-	return currency == CurrencyNGN || currency == CurrencyGHS
+	return currency == CurrencyNGN || currency == CurrencyGHS || currency == CurrencyXOF || currency == CurrencyUSD
 }
 
 // IsValidTransactionType checks if transaction type is valid
@@ -218,12 +226,27 @@ func IsValidPaymentMethod(method string) bool {
 
 // GetSupportedCurrencies returns list of supported currencies
 func GetSupportedCurrencies() []string {
-	return []string{CurrencyNGN, CurrencyGHS}
+	return []string{CurrencyNGN, CurrencyGHS, CurrencyXOF, CurrencyUSD}
 }
 
 // GetSupportedCountries returns list of supported countries
 func GetSupportedCountries() []string {
 	return []string{"NGN", "GHS", "ZAR", "TZA", "UGA", "RWA", "ZMB", "MWI", "BWA", "ZWE"}
+}
+
+// GetSupportedCountryCodes returns list of supported country codes for registration
+func GetSupportedCountryCodes() []string {
+	return []string{CountryCodeNigeria, CountryCodeGhana}
+}
+
+// IsValidCountryCode checks if country code is valid for registration
+func IsValidCountryCode(countryCode string) bool {
+	switch countryCode {
+	case CountryCodeNigeria, CountryCodeGhana:
+		return true
+	default:
+		return false
+	}
 }
 
 // IsDevelopment checks if running in development mode

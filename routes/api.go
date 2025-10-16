@@ -32,6 +32,7 @@ func ApiRoutes(router *gin.Engine) {
 		endpoints.NotificationRoutes(protected)
 		endpoints.SettingsRoutes(protected)
 		endpoints.DashboardRoutes(protected)
+		endpoints.UploadRoutes(protected)
 	}
 	admin := v1.Group(constants.AdminBase)
 	admin.Use(middlewares.AuthMiddleware(jwtService))

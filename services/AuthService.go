@@ -19,6 +19,24 @@ import (
 )
 
 func RegisterUser(user types.RegisterUser) error {
+	// Validate registration data with phone and country code
+	validationErrors := utils.ValidateUserRegistrationWithPhone(
+		user.FirstName, 
+		user.LastName, 
+		user.Email, 
+		user.Password, 
+		user.Phone, 
+		user.CountryCode, 
+		string(user.Country),
+	)
+	
+	if validationErrors.HasErrors() {
+		return errors.New(validationErrors.Error())
+	}
+
+	// Normalize phone number
+	normalizedPhone := utils.NormalizePhoneNumber(user.Phone, user.CountryCode)
+
 	uniqUUid := uuid.New().ID()
 
 	hashedPassword, err := libs.HashPassword(user.Password)
@@ -29,15 +47,17 @@ func RegisterUser(user types.RegisterUser) error {
 	ngnId, ghsId := libs.GenerateUniqueWalletId()
 
 	createUser := models.User{
-		Email:       user.Email,
-		Password:    hashedPassword,
-		FirstName:   user.FirstName,
-		LastName:    user.LastName,
-		Country:     user.Country,
-		IsAdmin:     false,
-		PhoneNumber: user.Phone,
-		IsVerified:  false, // User starts unverified until they verify their email
-		UserID:      uniqUUid,
+		Email:         user.Email,
+		Password:      hashedPassword,
+		FirstName:     user.FirstName,
+		LastName:      user.LastName,
+		Country:       user.Country,
+		IsAdmin:       false,
+		PhoneNumber:   normalizedPhone,
+		CountryCode:   user.CountryCode,
+		PhoneVerified: false,
+		IsVerified:    false, // User starts unverified until they verify their email
+		UserID:        uniqUUid,
 		Setting: models.Setting{
 			DefaultCurrency: models.DefaultCurrency(libs.GetDefaultCurrency(string(user.Country))),
 		},
@@ -493,6 +513,9 @@ func GoogleAuthLogin(user goth.User) (*libs.TokenPair, string, error) {
 				GoogleCloudId: user.UserID,
 				UserID:        uuid.New().ID(),
 				Country:       "NGN",
+				PhoneNumber:   "", // Google auth users will need to add phone later
+				CountryCode:   "+234", // Default to Nigeria for Google auth
+				PhoneVerified: false,
 				Setting: models.Setting{
 					DefaultCurrency: models.DefaultCurrency("NGN"),
 				},

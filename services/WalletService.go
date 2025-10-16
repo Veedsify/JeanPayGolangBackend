@@ -157,7 +157,82 @@ func TopUpWallet(userID uint, req types.TopUpRequest) (*types.TopUpResponse, err
 	}, nil
 }
 
-// WithdrawFromWallet initiates a wallet withdrawal
+// CalculateWithdrawalFee calculates withdrawal fee with 1.5% rate and 20 GHS cap
+func CalculateWithdrawalFee(amount float64, currency string) types.WithdrawalFeeCalculation {
+	const feeRate = 0.015  // 1.5%
+	const feeCapGHS = 20.0 // 20 GHS cap
+
+	calculatedFee := amount * feeRate
+	finalFee := calculatedFee
+
+	// Apply fee cap for GHS currency
+	if currency == "GHS" && calculatedFee > feeCapGHS {
+		finalFee = feeCapGHS
+	}
+
+	// For NGN, convert the GHS cap to NGN equivalent if needed
+	if currency == "NGN" {
+		// Get current exchange rate to convert GHS cap to NGN
+		exchangeRates, err := GetExchangeRates()
+		if err == nil && exchangeRates.Rates["GHS-NGN"] > 0 {
+			feeCapNGN := feeCapGHS * exchangeRates.Rates["GHS-NGN"]
+			if calculatedFee > feeCapNGN {
+				finalFee = feeCapNGN
+			}
+		}
+	}
+
+	netAmount := amount - finalFee
+
+	return types.WithdrawalFeeCalculation{
+		Amount:        utils.RoundCurrency(amount),
+		Currency:      currency,
+		FeeRate:       feeRate,
+		CalculatedFee: utils.RoundCurrency(calculatedFee),
+		FinalFee:      utils.RoundCurrency(finalFee),
+		FeeCap:        feeCapGHS,
+		NetAmount:     utils.RoundCurrency(netAmount),
+	}
+}
+
+// ValidateWithdrawalLimits validates withdrawal limits and balance
+func ValidateWithdrawalLimits(userID uint, amount float64, currency string) error {
+	if amount <= 0 {
+		return errors.New("withdrawal amount must be greater than zero")
+	}
+
+	// Get user's wallet balance
+	wallets, err := findOrCreateWallet(userID)
+	if err != nil {
+		return fmt.Errorf("failed to access wallets: %w", err)
+	}
+
+	// Find the wallet for the specific currency
+	var targetWallet *models.Wallet
+	for _, wallet := range wallets {
+		if wallet.Currency == currency {
+			targetWallet = &wallet
+			break
+		}
+	}
+
+	if targetWallet == nil {
+		return fmt.Errorf("wallet not found for currency %s", currency)
+	}
+
+	// Calculate fee and check if user has enough balance including fee
+	feeCalc := CalculateWithdrawalFee(amount, currency)
+	totalRequired := amount + feeCalc.FinalFee
+
+	if targetWallet.Balance < totalRequired {
+		return fmt.Errorf("insufficient balance. Required: %s %.2f (including fee: %s %.2f), Available: %s %.2f",
+			currency, totalRequired, currency, feeCalc.FinalFee, currency, targetWallet.Balance)
+	}
+
+	return nil
+}
+
+// WithdrawFromWallet initiates a wallet withdrawal with fee calculation
 func WithdrawFromWallet(userID uint, req types.WithdrawRequest) (*types.WithdrawResponse, error) {
 	if userID == 0 {
 		return nil, errors.New("user ID is required")
@@ -168,28 +243,14 @@ func WithdrawFromWallet(userID uint, req types.WithdrawRequest) (*types.Withdraw
 		return nil, err
 	}
 
-	// Get wallets and check balance
-	wallets, err := findOrCreateWallet(userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to access wallets: %w", err)
+	// Validate withdrawal limits and balance
+	if err := ValidateWithdrawalLimits(userID, req.Amount, req.Currency); err != nil {
+		return nil, err
 	}
 
-	// Find the wallet for the specific currency and check balance
-	var targetWallet *models.Wallet
-	for _, wallet := range wallets {
-		if wallet.Currency == req.Currency {
-			targetWallet = &wallet
-			break
-		}
-	}
-
-	if targetWallet == nil {
-		return nil, fmt.Errorf("wallet not found for currency %s", req.Currency)
-	}
-
-	if targetWallet.Balance < req.Amount {
-		return nil, errors.New("insufficient balance")
-	}
+	// Calculate withdrawal fee
+	feeCalc := CalculateWithdrawalFee(req.Amount, req.Currency)
+	totalDeduction := req.Amount + feeCalc.FinalFee
 
 	// Start transaction
 	tx := database.DB.Begin()
@@ -199,8 +260,8 @@ func WithdrawFromWallet(userID uint, req types.WithdrawRequest) (*types.Withdraw
 		}
 	}()
 
-	// Deduct amount from wallet
-	err = updateWalletBalance(tx, userID, req.Currency, -req.Amount, "withdrawal")
+	// Deduct total amount (withdrawal + fee) from wallet
+	err := updateWalletBalance(tx, userID, req.Currency, -totalDeduction, "withdrawal")
 	if err != nil {
 		tx.Rollback()
 		return nil, fmt.Errorf("failed to update wallet balance: %w", err)
@@ -215,24 +276,55 @@ func WithdrawFromWallet(userID uint, req types.WithdrawRequest) (*types.Withdraw
 
 	// Create transaction record
 	now := time.Now()
-	transactionID := uuid.New().String()
+	transactionIdx, err := libs.SecureRandomNumber(12)
+	if err != nil {
+		tx.Rollback()
+		return nil, fmt.Errorf("failed to generate transaction ID: %w", err)
+	}
+	transactionID := fmt.Sprintf("WTH%d", transactionIdx)
 	reference := generateTransactionReference("WITHDRAW")
+
+	// Determine payment type based on method
+	var paymentType models.PaymentType
+	if req.WithdrawalMethod == "bank" {
+		paymentType = models.PaymentTypeBank
+	} else {
+		paymentType = models.PaymentTypeMomo
+	}
+
+	// Create fee calculation details for storage
+	feeDetails := fmt.Sprintf("Amount: %s %.2f, Fee Rate: %.1f%%, Calculated Fee: %s %.2f, Final Fee: %s %.2f, Net Amount: %s %.2f",
+		req.Currency, feeCalc.Amount, feeCalc.FeeRate*100, req.Currency, feeCalc.CalculatedFee,
+		req.Currency, feeCalc.FinalFee, req.Currency, feeCalc.NetAmount)
 
 	transaction := models.Transaction{
 		UserID:          userID,
 		TransactionID:   transactionID,
-		Status:          "pending",
-		TransactionType: "withdrawal",
+		PaymentType:     paymentType,
+		Status:          models.TransactionPending,
+		TransactionType: models.Withdrawal,
 		Reference:       reference,
 		Direction:       getWithdrawalDirection(req.Currency),
 		CurrentRate:     currentExchangeRate.Rates[string(getWithdrawalDirection(req.Currency))],
-		Description:     fmt.Sprintf("Withdraw %s %.2f via %s", req.Currency, req.Amount, req.WithdrawalMethod),
+		WithdrawalFee:   feeCalc.FinalFee,
+		FeeCalculation:  feeDetails,
+		Description:     fmt.Sprintf("Withdraw %s %.2f via %s (Fee: %s %.2f)", req.Currency, req.Amount, req.WithdrawalMethod, req.Currency, feeCalc.FinalFee),
 		TransactionDetails: models.TransactionDetails{
 			FromCurrency:    req.Currency,
 			ToCurrency:      req.Currency,
 			FromAmount:      req.Amount,
-			ToAmount:        req.Amount,
+			ToAmount:        feeCalc.NetAmount, // Net amount after fee
 			MethodOfPayment: req.WithdrawalMethod,
+			// Store account details in appropriate fields
+			AccountNumber: func() string {
+				if req.AccountDetails.AccountNumber != "" {
+					return req.AccountDetails.AccountNumber
+				}
+				return req.AccountDetails.PhoneNumber
+			}(),
+			BankName:      req.AccountDetails.BankName,
+			Network:       req.AccountDetails.Network,
+			RecipientName: req.AccountDetails.AccountName,
 		},
 	}
 
@@ -246,13 +338,27 @@ func WithdrawFromWallet(userID uint, req types.WithdrawRequest) (*types.Withdraw
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
+	// Send notification
+	notificationClient := jobs.NewNotificationJobClient()
+	title := "Withdrawal Request"
+	message := fmt.Sprintf("Your withdrawal request of %s %.2f is being processed (Fee: %s %.2f)",
+		req.Currency, req.Amount, req.Currency, feeCalc.FinalFee)
+	notificationClient.EnqueueCreateNotification(
+		userID,
+		models.NotificationType("withdrawal"),
+		title,
+		message,
+	)
+
 	return &types.WithdrawResponse{
 		TransactionID:    transactionID,
 		Amount:           utils.RoundCurrency(req.Amount),
 		Currency:         req.Currency,
 		WithdrawalMethod: req.WithdrawalMethod,
-		Status:           "pending",
+		Status:           models.TransactionPending,
 		AccountDetails:   req.AccountDetails,
+		Fee:              feeCalc.FinalFee,
+		NetAmount:        feeCalc.NetAmount,
 		CreatedAt:        now,
 	}, nil
 }
@@ -335,7 +441,7 @@ func UpdateWalletAfterPayment(userID uint, currency string, amount float64) erro
 
 // Helper functions
 
-// findOrCreateWallet finds existing wallets or creates new ones (NGN and GHS)
+// findOrCreateWallet finds existing wallets or creates new ones (NGN, GHS, USD, XOF)
 func findOrCreateWallet(userID uint) ([]models.Wallet, error) {
 	var wallets []models.Wallet
 
@@ -344,51 +450,47 @@ func findOrCreateWallet(userID uint) ([]models.Wallet, error) {
 		return nil, fmt.Errorf("failed to find wallets: %w", err)
 	}
 
-	// Check if we have both NGN and GHS wallets
-	hasNGN := false
-	hasGHS := false
+	// Check which wallets exist
+	supportedCurrencies := []string{"NGN", "GHS", "USD", "XOF"}
+	existingCurrencies := make(map[string]bool)
+
 	for _, wallet := range wallets {
-		if wallet.Currency == "NGN" {
-			hasNGN = true
-		}
-		if wallet.Currency == "GHS" {
-			hasGHS = true
-		}
+		existingCurrencies[wallet.Currency] = true
 	}
 
-	// Create missing wallets
-	if !hasNGN {
-		ngnWallet := models.Wallet{
-			UserID:           userID,
-			Currency:         "NGN",
-			Balance:          0.0,
-			WalletID:         libs.GenerateRandomLengthNumbers(12), // NGN wallet ID
-			TotalDeposits:    0.0,
-			TotalWithdrawals: 0.0,
-			TotalConversions: 0.0,
-			IsActive:         true,
-		}
-		if err := database.DB.Create(&ngnWallet).Error; err != nil {
-			return nil, fmt.Errorf("failed to create NGN wallet: %w", err)
-		}
-		wallets = append(wallets, ngnWallet)
-	}
+	// Create missing wallets for all supported currencies
+	for _, currency := range supportedCurrencies {
+		if !existingCurrencies[currency] {
+			var walletIDLength int
+			switch currency {
+			case "NGN":
+				walletIDLength = 12
+			case "GHS":
+				walletIDLength = 10
+			case "USD":
+				walletIDLength = 11
+			case "XOF":
+				walletIDLength = 13
+			default:
+				walletIDLength = 12
+			}
 
-	if !hasGHS {
-		ghsWallet := models.Wallet{
-			UserID:           userID,
-			Currency:         "GHS",
-			Balance:          0.0,
-			WalletID:         libs.GenerateRandomLengthNumbers(10), // GHS wallet ID
-			TotalDeposits:    0.0,
-			TotalWithdrawals: 0.0,
-			TotalConversions: 0.0,
-			IsActive:         true,
+			newWallet := models.Wallet{
+				UserID:           userID,
+				Currency:         currency,
+				Balance:          0.0,
+				WalletID:         libs.GenerateRandomLengthNumbers(walletIDLength),
+				TotalDeposits:    0.0,
+				TotalWithdrawals: 0.0,
+				TotalConversions: 0.0,
+				IsActive:         true,
+			}
+
+			if err := database.DB.Create(&newWallet).Error; err != nil {
+				return nil, fmt.Errorf("failed to create %s wallet: %w", currency, err)
+			}
+			wallets = append(wallets, newWallet)
 		}
-		if err := database.DB.Create(&ghsWallet).Error; err != nil {
-			return nil, fmt.Errorf("failed to create GHS wallet: %w", err)
-		}
-		wallets = append(wallets, ghsWallet)
 	}
 
 	return wallets, nil
@@ -497,12 +599,30 @@ func validateWithdrawRequest(req types.WithdrawRequest) error {
 		return errors.New("invalid currency. Must be NGN or GHS")
 	}
 
+	fmt.Println(req.WithdrawalMethod)
+
 	if req.WithdrawalMethod != "bank" && req.WithdrawalMethod != "momo" {
 		return errors.New("invalid withdrawal method. Must be bank or momo")
 	}
 
-	if len(req.AccountDetails) == 0 {
-		return errors.New("account details are required")
+	// Validate account details based on withdrawal method
+	if req.WithdrawalMethod == "bank" {
+		if req.AccountDetails.AccountNumber == "" {
+			return errors.New("account number is required for bank withdrawal")
+		}
+		if req.AccountDetails.AccountName == "" {
+			return errors.New("account name is required for bank withdrawal")
+		}
+		if req.AccountDetails.BankName == "" {
+			return errors.New("bank name is required for bank withdrawal")
+		}
+	} else if req.WithdrawalMethod == "momo" {
+		if req.AccountDetails.PhoneNumber == "" {
+			return errors.New("phone number is required for mobile money withdrawal")
+		}
+		if req.AccountDetails.Network == "" {
+			return errors.New("network is required for mobile money withdrawal")
+		}
 	}
 
 	return nil
@@ -565,4 +685,128 @@ func GetTopUpDetails(userID uint, transactionID string) (*types.TopUpResponse, e
 	}
 
 	return response, nil
+}
+
+// GetWithdrawalDetails retrieves withdrawal transaction details
+func GetWithdrawalDetails(userID uint, transactionID string) (*types.WithdrawResponse, error) {
+	if userID == 0 {
+		return nil, errors.New("user ID is required")
+	}
+
+	if transactionID == "" {
+		return nil, errors.New("transaction ID is required")
+	}
+
+	var transaction models.Transaction
+	err := database.DB.Where("user_id = ? AND transaction_id = ? AND transaction_type = ?",
+		userID, transactionID, models.Withdrawal).
+		Preload("TransactionDetails").
+		First(&transaction).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("withdrawal transaction not found")
+		}
+		return nil, fmt.Errorf("failed to fetch withdrawal details: %w", err)
+	}
+
+	// Convert to response format
+	response := &types.WithdrawResponse{
+		TransactionID:    transaction.TransactionID,
+		Amount:           utils.RoundCurrency(transaction.TransactionDetails.FromAmount),
+		Currency:         transaction.TransactionDetails.FromCurrency,
+		WithdrawalMethod: string(transaction.PaymentType),
+		Status:           transaction.Status,
+		AccountDetails: types.WithdrawalAccountDetails{
+			AccountNumber: transaction.TransactionDetails.AccountNumber,
+			AccountName:   transaction.TransactionDetails.RecipientName,
+			BankName:      transaction.TransactionDetails.BankName,
+			PhoneNumber:   transaction.TransactionDetails.PhoneNumber,
+			Network:       transaction.TransactionDetails.Network,
+		},
+		Fee:       utils.RoundCurrency(transaction.WithdrawalFee),
+		NetAmount: utils.RoundCurrency(transaction.TransactionDetails.ToAmount),
+		CreatedAt: transaction.CreatedAt,
+	}
+
+	return response, nil
+}
+
+// GetUserWithdrawals retrieves user's withdrawal history
+func GetUserWithdrawals(userID uint, req types.GetWithdrawalsRequest) (*types.GetWithdrawalsResponse, error) {
+	if userID == 0 {
+		return nil, errors.New("user ID is required")
+	}
+
+	// Build query
+	query := database.DB.Model(&models.Transaction{}).
+		Where("user_id = ? AND transaction_type = ?", userID, models.Withdrawal).
+		Preload("TransactionDetails")
+
+	// Apply filters
+	if req.Status != "" {
+		query = query.Where("status = ?", req.Status)
+	}
+
+	if req.Currency != "" {
+		query = query.Joins("JOIN transaction_details ON transactions.id = transaction_details.transaction_id").
+			Where("transaction_details.from_currency = ?", req.Currency)
+	}
+
+	// Count total records
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, fmt.Errorf("failed to count withdrawals: %w", err)
+	}
+
+	// Calculate pagination
+	page := req.Page
+	if page <= 0 {
+		page = 1
+	}
+	limit := req.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	offset := (page - 1) * limit
+
+	// Find transactions
+	var transactions []models.Transaction
+	if err := query.Order("created_at DESC").Offset(offset).Limit(limit).Find(&transactions).Error; err != nil {
+		return nil, fmt.Errorf("failed to find withdrawals: %w", err)
+	}
+
+	// Convert to response format
+	var withdrawals []types.WithdrawResponse
+	for _, tx := range transactions {
+		withdrawal := types.WithdrawResponse{
+			TransactionID:    tx.TransactionID,
+			Amount:           utils.RoundCurrency(tx.TransactionDetails.FromAmount),
+			Currency:         tx.TransactionDetails.FromCurrency,
+			WithdrawalMethod: string(tx.PaymentType),
+			Status:           tx.Status,
+			AccountDetails: types.WithdrawalAccountDetails{
+				AccountNumber: tx.TransactionDetails.AccountNumber,
+				AccountName:   tx.TransactionDetails.RecipientName,
+				BankName:      tx.TransactionDetails.BankName,
+				PhoneNumber:   tx.TransactionDetails.PhoneNumber,
+				Network:       tx.TransactionDetails.Network,
+			},
+			Fee:       utils.RoundCurrency(tx.WithdrawalFee),
+			NetAmount: utils.RoundCurrency(tx.TransactionDetails.ToAmount),
+			CreatedAt: tx.CreatedAt,
+		}
+		withdrawals = append(withdrawals, withdrawal)
+	}
+
+	// Create pagination response
+	totalPages := (total + int64(limit) - 1) / int64(limit)
+
+	return &types.GetWithdrawalsResponse{
+		Withdrawals: withdrawals,
+		Total:       total,
+		Page:        page,
+		Limit:       limit,
+		TotalPages:  int(totalPages),
+	}, nil
 }
