@@ -12,7 +12,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// GetAllWithdrawals retrieves all withdrawal requests with pagination and filters
 func GetAllWithdrawals(params types.WithdrawalQueryParams) ([]types.WithdrawalWithUser, types.WithdrawalPagination, error) {
 	var withdrawals []types.WithdrawalWithUser
 	var total int64
@@ -23,23 +22,27 @@ func GetAllWithdrawals(params types.WithdrawalQueryParams) ([]types.WithdrawalWi
 			transactions.id,
 			transactions.transaction_id,
 			transactions.user_id,
-			COALESCE(transaction_details.from_amount, 0) as amount,
-			COALESCE(transaction_details.from_currency, '') as currency,
-			0 as fee,
-			COALESCE(transaction_details.from_amount, 0) as net_amount,
 			transactions.status,
-			transactions.payment_type as method,
+			transactions.payment_type,
+			transactions.receipt_url,
+			transactions.reason,
+			transactions.created_at,
+			transactions.updated_at,
+			transactions.withdrawal_fee,
 			users.first_name,
 			users.last_name,
 			users.email,
 			users.phone_number,
+			users.country_code,
 			users.profile_picture,
 			CASE WHEN users.is_verified THEN 'verified' ELSE 'pending' END as verification_status,
 			transaction_details.account_number,
 			transaction_details.bank_name,
 			transaction_details.phone_number as detail_phone,
 			transaction_details.network,
-			transaction_details.recipient_name
+			transaction_details.recipient_name,
+			transaction_details.from_amount,
+			transaction_details.from_currency
 		`).
 		Joins("LEFT JOIN users ON transactions.user_id = users.id").
 		Joins("LEFT JOIN transaction_details ON transactions.id = transaction_details.transaction_id").
@@ -62,9 +65,9 @@ func GetAllWithdrawals(params types.WithdrawalQueryParams) ([]types.WithdrawalWi
 	if params.Search != "" {
 		searchTerm := "%" + params.Search + "%"
 		query = query.Where(`
-			transactions.transaction_id LIKE ? OR 
-			users.first_name LIKE ? OR 
-			users.last_name LIKE ? OR 
+			transactions.transaction_id LIKE ? OR
+			users.first_name LIKE ? OR
+			users.last_name LIKE ? OR
 			users.email LIKE ? OR
 			CONCAT(users.first_name, ' ', users.last_name) LIKE ?
 		`, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm)
@@ -101,20 +104,50 @@ func GetAllWithdrawals(params types.WithdrawalQueryParams) ([]types.WithdrawalWi
 	// Scan results
 	for rows.Next() {
 		var w types.WithdrawalWithUser
-		var accountNumber, bankName, detailPhone, network, recipientName *string
+		var accountNumber, bankName, detailPhone, network, recipientName, currency *string
+		var amount, fee float64
 
 		err := rows.Scan(
-			&w.ID, &w.TransactionID, &w.UserID, &w.Amount, &w.Currency,
-			&w.Fee, &w.NetAmount, &w.Status, &w.Method, &w.ReceiptURL,
-			&w.RejectionReason, &w.CreatedAt, &w.UpdatedAt,
-			&w.User.FirstName, &w.User.LastName, &w.User.Email,
-			&w.User.PhoneNumber, &w.User.CountryCode, &w.User.ProfilePicture,
-			&w.User.VerificationStatus, &accountNumber, &bankName,
-			&detailPhone, &network, &recipientName,
+			&w.ID,
+			&w.TransactionID,
+			&w.UserID,
+			&w.Status,
+			&w.Method,
+			&w.ReceiptURL,
+			&w.RejectionReason,
+			&w.CreatedAt,
+			&w.UpdatedAt,
+			&fee, // transactions.withdrawal_fee
+			&w.User.FirstName,
+			&w.User.LastName,
+			&w.User.Email,
+			&w.User.PhoneNumber,
+			&w.User.CountryCode,
+			&w.User.ProfilePicture,
+			&w.User.VerificationStatus,
+			&accountNumber,
+			&bankName,
+			&detailPhone,
+			&network,
+			&recipientName,
+			&amount,   // transaction_details.from_amount
+			&currency, // transaction_details.from_currency
 		)
 		if err != nil {
 			return nil, types.WithdrawalPagination{}, err
 		}
+
+		// Set the amount and currency from transaction_details
+		w.Amount = amount
+		if currency != nil {
+			w.Currency = *currency
+		} else {
+			w.Currency = "" // or set a default value
+		}
+
+		// Set the fee from transaction
+		w.Fee = fee
+		w.NetAmount = amount - fee // Calculate net amount
 
 		// Set user ID
 		w.User.UserID = w.UserID
@@ -141,8 +174,6 @@ func GetAllWithdrawals(params types.WithdrawalQueryParams) ([]types.WithdrawalWi
 			w.AccountDetails.Network = *network
 		}
 		if recipientName != nil {
-			// Note: RecipientName field should be added to WithdrawalAccountDetails type
-			// For now, we'll use AccountName as a fallback
 			w.AccountDetails.AccountName = *recipientName
 		}
 
@@ -167,7 +198,7 @@ func GetWithdrawalStats() (types.WithdrawalStats, error) {
 
 	// Base query for withdrawals
 	baseQuery := database.DB.Model(&models.Transaction{}).
-		Where("transaction_type = ? AND direction = ?", "WITHDRAWAL", "WITHDRAWAL")
+		Where("transaction_type = ?", "withdrawal")
 
 	// Total requests
 	if err := baseQuery.Count(&stats.TotalRequests).Error; err != nil {
@@ -213,7 +244,7 @@ func GetWithdrawalStats() (types.WithdrawalStats, error) {
 		var amount float64
 
 		query := database.DB.Model(&models.Transaction{}).
-			Where("transaction_type = ? AND direction = ? AND created_at >= ?", "WITHDRAWAL", "WITHDRAWAL", start).
+			Where("transaction_type = ? AND direction = ? AND transactions.created_at >= ?", "WITHDRAWAL", "WITHDRAWAL", start).
 			Joins("LEFT JOIN transaction_details ON transactions.id = transaction_details.transaction_id")
 
 		if err := query.

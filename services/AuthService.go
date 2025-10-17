@@ -21,15 +21,15 @@ import (
 func RegisterUser(user types.RegisterUser) error {
 	// Validate registration data with phone and country code
 	validationErrors := utils.ValidateUserRegistrationWithPhone(
-		user.FirstName, 
-		user.LastName, 
-		user.Email, 
-		user.Password, 
-		user.Phone, 
-		user.CountryCode, 
+		user.FirstName,
+		user.LastName,
+		user.Email,
+		user.Password,
+		user.Phone,
+		user.CountryCode,
 		string(user.Country),
 	)
-	
+
 	if validationErrors.HasErrors() {
 		return errors.New(validationErrors.Error())
 	}
@@ -44,7 +44,10 @@ func RegisterUser(user types.RegisterUser) error {
 		return err
 	}
 
-	ngnId, ghsId := libs.GenerateUniqueWalletId()
+	ngnId, ghsId, usdId, xofId, err := libs.GenerateAllWalletIds()
+	if err != nil {
+		return errors.New("failed to generate wallet IDs")
+	}
 
 	createUser := models.User{
 		Email:         user.Email,
@@ -71,6 +74,16 @@ func RegisterUser(user types.RegisterUser) error {
 				Currency: "GHS",
 				Balance:  0,
 				WalletID: ghsId,
+			},
+			{
+				Currency: "USD",
+				Balance:  0,
+				WalletID: usdId,
+			},
+			{
+				Currency: "XOF",
+				Balance:  0,
+				WalletID: xofId,
 			},
 		},
 	}
@@ -502,7 +515,10 @@ func GoogleAuthLogin(user goth.User) (*libs.TokenPair, string, error) {
 	err := database.DB.Where("email = ?", user.Email).First(&dbUser).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			ngnId, ghsId := libs.GenerateUniqueWalletId()
+			ngnId, ghsId, usdId, xofId, walletErr := libs.GenerateAllWalletIds()
+			if walletErr != nil {
+				return &libs.TokenPair{}, "login", errors.New("failed to generate wallet IDs")
+			}
 			createUser := models.User{
 				Email:         user.Email,
 				FirstName:     user.FirstName,
@@ -513,7 +529,7 @@ func GoogleAuthLogin(user goth.User) (*libs.TokenPair, string, error) {
 				GoogleCloudId: user.UserID,
 				UserID:        uuid.New().ID(),
 				Country:       "NGN",
-				PhoneNumber:   "", // Google auth users will need to add phone later
+				PhoneNumber:   "",     // Google auth users will need to add phone later
 				CountryCode:   "+234", // Default to Nigeria for Google auth
 				PhoneVerified: false,
 				Setting: models.Setting{
@@ -529,6 +545,16 @@ func GoogleAuthLogin(user goth.User) (*libs.TokenPair, string, error) {
 						Currency: "GHS",
 						Balance:  0,
 						WalletID: ghsId,
+					},
+					{
+						Currency: "USD",
+						Balance:  0,
+						WalletID: usdId,
+					},
+					{
+						Currency: "XOF",
+						Balance:  0,
+						WalletID: xofId,
 					},
 				}}
 

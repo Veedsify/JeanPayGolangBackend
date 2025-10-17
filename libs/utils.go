@@ -451,6 +451,27 @@ func GenerateUniqueWalletId() (uint64, uint64) {
 	return uint64(NGN), uint64(GHS)
 }
 
+// GenerateAllWalletIds generates unique wallet IDs for all 4 supported currencies
+func GenerateAllWalletIds() (uint64, uint64, uint64, uint64, error) {
+	var NGN, GHS, USD, XOF int64
+	var err error
+
+	if NGN, err = SecureRandomNumber(12); err != nil {
+		return 0, 0, 0, 0, err
+	}
+	if GHS, err = SecureRandomNumber(12); err != nil {
+		return 0, 0, 0, 0, err
+	}
+	if USD, err = SecureRandomNumber(12); err != nil {
+		return 0, 0, 0, 0, err
+	}
+	if XOF, err = SecureRandomNumber(12); err != nil {
+		return 0, 0, 0, 0, err
+	}
+
+	return uint64(NGN), uint64(GHS), uint64(USD), uint64(XOF), nil
+}
+
 func GetDefaultCurrency(country string) string {
 	switch country {
 	case "NG":
